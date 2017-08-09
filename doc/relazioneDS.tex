@@ -16,7 +16,7 @@
 
 \section{Introduzione}\label{sec:intro}
 
-Il problema proposto è quello di implementare un protocollo di transazioni distribuite, tramite il quale dei client possono prenotare concorrentemente delle risorse disposte su più server.
+Il problema proposto è quello di implementare un protocollo di transazioni distribuite, tramite il quale dei client possono prenotare in modo concorrente delle risorse disposte su più server.
 
 \paragraph{Il pretesto} è quello di gestire un sistema di prenotazione di posti su voli aerei. Idealmente un'agenzia di viaggio (client) deve essere in grado di prenotare via internet una serie di posti su più voli di diverse compagnie. I server delle compagnie aeree mantengono la lista e lo stato dei voli e relativi posti. La prenotazione ha successo se e solo se \textit{tutti} i posti richiesti vengono prenotati. 
 
@@ -44,7 +44,8 @@ Naturalmente si vuole evitare che le richieste di prenotazione interferiscono tr
 \begin{itemize}
 	\item Fault tolerance: i server delle compagnie aeree devono cercare di mascherare i guasti.
 	\item Trasparenza rispetto alla replicazione.
-	\item Altà disponibilità, almeno $96\%$ (circa un giorno al mese di downtime).
+	\item Alta disponibilità, almeno $96\%$ (circa un giorno al mese di downtime).
+	\item Tempi di risposta contenuti: se una transazione non viene completata entro 40 secondi, viene abortita dal client.
 \end{itemize}
 
 \end{document}
