@@ -24,7 +24,9 @@ Naturalmente si vuole evitare che le richieste di prenotazione interferiscono tr
 
 \paragraph{Una soluzione na\"ive} è quella di creare una transazione per ogni posto da prenotare, abortendo nel caso in cui una fallisca; tuttavia si vuole evitare l'annullamento di prenotazioni già effettuate.
 
-\paragraph{Considerazioni} Si suppone che il sistema venga operato da umani (gli impiegati delle agenzie di viaggio), perciò è lecito ritenere che le probabilità di interferenza tra prenotazioni sia basso.
+%============================================================================
+%============================================================================
+%============================================================================
 
 \section{Analisi}\label{sec:analisi}
 
@@ -54,6 +56,32 @@ Naturalmente si vuole evitare che le richieste di prenotazione interferiscono tr
 	\item Omissioni di messaggi da parte dei server vengono visti dal client come un \textit{timeout}. Se sono disponibili indirizzi alternativi, il client può decidere di contattarli in modo trasparente.
 	\item Omissioni o crash da parte del client portano la transazione ad essere abortita dai server.
 \end{itemize}
+
+%============================================================================
+%============================================================================
+%============================================================================
+
+\section{Progetto e specifiche}
+
+\subsection{Architettura logica}
+% Componenti, funzioni, utenti
+
+
+%============================================================================
+
+\subsection{Protocolli e algoritmi}
+% Comunicazioni tra componenti, UML sequenza, descrizione algo. distrib.
+
+
+%============================================================================
+
+\subsection{Architettura fisica}
+% Nodi e piattaforme coinvolte, dove vengono piazzati
+
+
+%============================================================================
+%============================================================================
+%============================================================================
 
 \end{document}
 
