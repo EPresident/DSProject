@@ -20,7 +20,7 @@ Il problema proposto è quello di implementare un protocollo di transazioni distr
 
 \paragraph{Il pretesto} è quello di gestire un sistema di prenotazione di posti su voli aerei. Idealmente un'agenzia di viaggio (client) deve essere in grado di prenotare via internet una serie di posti su più voli di diverse compagnie. I server delle compagnie aeree mantengono la lista e lo stato dei voli e relativi posti. La prenotazione ha successo se e solo se \textit{tutti} i posti richiesti vengono prenotati. 
 
-Naturalmente si vuole evitare che le richieste di prenotazione interferiscono tra di loro (e soprattutto evitare che lo stesso posto venga prenotato più volte). Nel caso in cui venga richiesto un posto che risulta occupato, la compagnia aerea dovrebbe proporre un posto alternativo (se possibile).
+Naturalmente si vuole evitare che le richieste di prenotazione interferiscono tra di loro (e soprattutto evitare che lo stesso posto venga prenotato più volte). %Nel caso in cui venga richiesto un posto che risulta occupato, il client potrebbe proporre un posto alternativo all'utente (se possibile).
 
 \paragraph{Una soluzione na\"ive} è quella di creare una transazione per ogni posto da prenotare, abortendo nel caso in cui una fallisca; tuttavia si vuole evitare l'annullamento di prenotazioni già effettuate.
 
@@ -37,15 +37,22 @@ Naturalmente si vuole evitare che le richieste di prenotazione interferiscono tr
 	\item Ci devono essere almeno cinque compagnie aeree.
 	\item Ogni server di ogni compagnia aerea mantiene una lista di voli, i quali hanno una serie di posti che possono essere liberi o prenotati.
 	\item Un posto in aereo non deve mai venire prenotato più volte.
-	\item Una volta confermata una prenotazione per un posto aereo, questa non deve essere più annullata.
+	\item Una volta confermata una prenotazione per un posto aereo, questa non deve essere più annullata dai server.
+	\item L'agenzia deve essere in grado di disdire una prenotazione. Si astrae su eventuali termini per l'annullamento.
 \end{itemize}
 
 \subsection{Requisiti non funzionali}
+
 \begin{itemize}
-	\item Fault tolerance: i server delle compagnie aeree devono cercare di mascherare i guasti.
-	\item Trasparenza rispetto alla replicazione.
 	\item Alta disponibilità, almeno $96\%$ (circa un giorno al mese di downtime).
-	\item Tempi di risposta contenuti: se una transazione non viene completata entro 40 secondi, viene abortita dal client.
+	\item Tempi di risposta contenuti: se una transazione non viene completata entro $N$ secondi, viene abortita (dal client).
+		\item Trasparenza rispetto alla replicazione. Una stessa compagnia può avere più server replica; può esporli tutti su indirizzi separati, oppure metterli sotto un singolo indirizzo e gestirli come più opportuno. Se vengono esposti più indirizzi, sarà il client a contattarne di diversi in caso di problemi.
+\end{itemize}
+\subsubsection{Fault Tolerance}
+\begin{itemize}
+	\item I server delle compagnie aeree devono cercare di mascherare i \textit{crash}. Un crash durante una transazione causa un \textit{abort}, uno dopo il \textit{commit} non deve causare perdite.
+	\item Omissioni di messaggi da parte dei server vengono visti dal client come un \textit{timeout}. Se sono disponibili indirizzi alternativi, il client può decidere di contattarli in modo trasparente.
+	\item Omissioni o crash da parte del client portano la transazione ad essere abortita dai server.
 \end{itemize}
 
 \end{document}
