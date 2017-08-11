@@ -76,7 +76,7 @@ _:Server_</panel_attributes>
       <x>450</x>
       <y>153</y>
       <w>18</w>
-      <h>216</h>
+      <h>288</h>
     </coordinates>
     <panel_attributes>
 bg=white
@@ -89,7 +89,7 @@ layer=1</panel_attributes>
     <id>Relation</id>
     <coordinates>
       <x>450</x>
-      <y>360</y>
+      <y>432</y>
       <w>27</w>
       <h>72</h>
     </coordinates>
@@ -102,7 +102,7 @@ layer=1</panel_attributes>
       <x>18</x>
       <y>18</y>
       <w>963</w>
-      <h>414</h>
+      <h>486</h>
     </coordinates>
     <panel_attributes>Prenotazione - Sequence Diagram</panel_attributes>
     <additional_attributes/>
@@ -174,7 +174,7 @@ requestLockIn(seat2,TID)</panel_attributes>
       <x>162</x>
       <y>189</y>
       <w>18</w>
-      <h>171</h>
+      <h>243</h>
     </coordinates>
     <panel_attributes>
 bg=white
@@ -199,7 +199,7 @@ seatsLockedIn()</panel_attributes>
     <id>Relation</id>
     <coordinates>
       <x>162</x>
-      <y>351</y>
+      <y>423</y>
       <w>27</w>
       <h>81</h>
     </coordinates>
@@ -212,7 +212,7 @@ seatsLockedIn()</panel_attributes>
       <x>810</x>
       <y>207</y>
       <w>18</w>
-      <h>171</h>
+      <h>225</h>
     </coordinates>
     <panel_attributes>
 bg=white
@@ -225,12 +225,12 @@ layer=1</panel_attributes>
     <id>Relation</id>
     <coordinates>
       <x>810</x>
-      <y>369</y>
+      <y>423</y>
       <w>27</w>
-      <h>63</h>
+      <h>81</h>
     </coordinates>
     <panel_attributes>lt=.</panel_attributes>
-    <additional_attributes>10.0;10.0;10.0;50.0</additional_attributes>
+    <additional_attributes>10.0;10.0;10.0;70.0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
@@ -247,56 +247,56 @@ seatsLockedIn()</panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>18</x>
+      <x>27</x>
       <y>207</y>
-      <w>162</w>
+      <w>153</w>
       <h>54</h>
     </coordinates>
     <panel_attributes>lt=&lt;&lt;&lt;-
-m1= commitToStorage(TID)</panel_attributes>
-    <additional_attributes>160.0;40.0;130.0;20.0;160.0;10.0</additional_attributes>
+m1= lockSeats(seat1,TID)</panel_attributes>
+    <additional_attributes>150.0;40.0;120.0;20.0;150.0;10.0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates>
       <x>819</x>
       <y>216</y>
-      <w>162</w>
+      <w>153</w>
       <h>54</h>
     </coordinates>
     <panel_attributes>lt=&lt;&lt;&lt;-
-m1= commitToStorage(TID)</panel_attributes>
+m1= lockSeats(seat1,TID)</panel_attributes>
     <additional_attributes>10.0;40.0;50.0;20.0;10.0;10.0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates>
       <x>171</x>
-      <y>297</y>
+      <y>360</y>
       <w>297</w>
       <h>36</h>
     </coordinates>
     <panel_attributes>lt=&lt;-
-commit(TID)</panel_attributes>
+doCommit(TID)</panel_attributes>
     <additional_attributes>10.0;20.0;310.0;20.0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates>
       <x>459</x>
-      <y>306</y>
+      <y>369</y>
       <w>369</w>
       <h>36</h>
     </coordinates>
     <panel_attributes>lt=&lt;-
-commit(TID)</panel_attributes>
+doCommit(TID)</panel_attributes>
     <additional_attributes>390.0;20.0;10.0;20.0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
     <coordinates>
       <x>171</x>
-      <y>333</y>
+      <y>396</y>
       <w>297</w>
       <h>36</h>
     </coordinates>
@@ -308,12 +308,84 @@ haveCommitted()</panel_attributes>
     <id>Relation</id>
     <coordinates>
       <x>459</x>
-      <y>342</y>
+      <y>405</y>
       <w>369</w>
       <h>36</h>
     </coordinates>
     <panel_attributes>lt=&lt;-
 haveCommitted()</panel_attributes>
+    <additional_attributes>10.0;20.0;390.0;20.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>819</x>
+      <y>306</y>
+      <w>162</w>
+      <h>54</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;&lt;-
+m1= commitToStorage(TID)</panel_attributes>
+    <additional_attributes>10.0;40.0;50.0;20.0;10.0;10.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>171</x>
+      <y>279</y>
+      <w>297</w>
+      <h>36</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;-
+canCommit(TID)</panel_attributes>
+    <additional_attributes>10.0;20.0;310.0;20.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>459</x>
+      <y>288</y>
+      <w>369</w>
+      <h>36</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;-
+canCommit(TID)</panel_attributes>
+    <additional_attributes>390.0;20.0;10.0;20.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>171</x>
+      <y>315</y>
+      <w>297</w>
+      <h>36</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;-
+yes()</panel_attributes>
+    <additional_attributes>310.0;20.0;10.0;20.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>18</x>
+      <y>297</y>
+      <w>162</w>
+      <h>54</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;&lt;-
+m1= commitToStorage(TID)</panel_attributes>
+    <additional_attributes>160.0;40.0;130.0;20.0;160.0;10.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>459</x>
+      <y>324</y>
+      <w>369</w>
+      <h>36</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;-
+yes()</panel_attributes>
     <additional_attributes>10.0;20.0;390.0;20.0</additional_attributes>
   </element>
 </diagram>
