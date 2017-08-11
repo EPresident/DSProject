@@ -2,6 +2,7 @@
 \usepackage[latin1]{inputenc}
 \usepackage[italian]{babel}
 \usepackage{microtype} % tipografia
+\usepackage{graphicx}
 \usepackage[bookmarks=true,bookmarksopen=true,pdfhighlight=/I,pdfpagemode=UseOutlines]{hyperref} % hyper-links, questo va per ultimo
 
 
@@ -66,12 +67,22 @@ Naturalmente si vuole evitare che le richieste di prenotazione interferiscono tr
 \subsection{Architettura logica}
 % Componenti, funzioni, utenti
 
+L'architettura è di tipo \textit{client-server} a due \textit{tier}, con server \textit{peer} (dato che le risorse sono distribuite).
+
+I \textbf{server} delle compagnie aeree mantengono la lista di voli e di posti a sedere, tendendo conto se quest'ultimi sono occupati o meno (e da chi). Forniscono la lista dei posti su richiesta. Possono eliminare una prenotazione effettuata da un client (su sua richiesta e solo sulle risorse gestite dal server).
+
+I \textbf{client} delle agenzie di viaggio interrogano i server (conosciuti a priori) per avere la lista dei posti, e richiedono la prenotazione di una lista di posti. I client sono operati dagli addetti delle agenzie di viaggi.
+
 
 %============================================================================
 
 \subsection{Protocolli e algoritmi}
 % Comunicazioni tra componenti, UML sequenza, descrizione algo. distrib.
-
+\begin{figure}[h]
+	\centering
+		\includegraphics[width=\textwidth]{fig/reserve_sequence.pdf}
+		\caption{Diagramma di sequenza UML di un'operazione di prenotazione di due posti, eseguita con successo.}
+\end{figure}
 
 %============================================================================
 
