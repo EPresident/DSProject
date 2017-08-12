@@ -4,19 +4,19 @@
   <element>
     <id>UMLGeneric</id>
     <coordinates>
-      <x>414</x>
+      <x>423</x>
       <y>54</y>
       <w>99</w>
       <h>45</h>
     </coordinates>
-    <panel_attributes>_ViaggiDaSogno_
-_:Client_</panel_attributes>
+    <panel_attributes>_Coordinator_
+valign=center</panel_attributes>
     <additional_attributes/>
   </element>
   <element>
     <id>UMLGeneric</id>
     <coordinates>
-      <x>126</x>
+      <x>135</x>
       <y>54</y>
       <w>90</w>
       <h>45</h>
@@ -28,7 +28,7 @@ _:Server_</panel_attributes>
   <element>
     <id>UMLGeneric</id>
     <coordinates>
-      <x>774</x>
+      <x>783</x>
       <y>54</y>
       <w>90</w>
       <h>45</h>
@@ -40,7 +40,7 @@ _:Server_</panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>450</x>
+      <x>459</x>
       <y>90</y>
       <w>27</w>
       <h>81</h>
@@ -51,7 +51,7 @@ _:Server_</panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>162</x>
+      <x>171</x>
       <y>90</y>
       <w>27</w>
       <h>117</h>
@@ -62,7 +62,7 @@ _:Server_</panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>810</x>
+      <x>819</x>
       <y>90</y>
       <w>27</w>
       <h>135</h>
@@ -73,10 +73,10 @@ _:Server_</panel_attributes>
   <element>
     <id>UMLGeneric</id>
     <coordinates>
-      <x>450</x>
+      <x>459</x>
       <y>153</y>
       <w>18</w>
-      <h>288</h>
+      <h>387</h>
     </coordinates>
     <panel_attributes>
 bg=white
@@ -88,8 +88,8 @@ layer=1</panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>450</x>
-      <y>432</y>
+      <x>459</x>
+      <y>531</y>
       <w>27</w>
       <h>72</h>
     </coordinates>
@@ -99,10 +99,10 @@ layer=1</panel_attributes>
   <element>
     <id>UMLFrame</id>
     <coordinates>
-      <x>18</x>
+      <x>27</x>
       <y>18</y>
       <w>963</w>
-      <h>486</h>
+      <h>612</h>
     </coordinates>
     <panel_attributes>Prenotazione - Sequence Diagram</panel_attributes>
     <additional_attributes/>
@@ -110,7 +110,7 @@ layer=1</panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>450</x>
+      <x>459</x>
       <y>99</y>
       <w>153</w>
       <h>72</h>
@@ -122,7 +122,7 @@ m1=book(seat1, seat2)</panel_attributes>
   <element>
     <id>UMLNote</id>
     <coordinates>
-      <x>603</x>
+      <x>612</x>
       <y>90</y>
       <w>126</w>
       <h>72</h>
@@ -136,7 +136,7 @@ a new transactionID</panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>513</x>
+      <x>522</x>
       <y>117</y>
       <w>108</w>
       <h>27</h>
@@ -147,7 +147,7 @@ a new transactionID</panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>171</x>
+      <x>180</x>
       <y>180</y>
       <w>297</w>
       <h>36</h>
@@ -159,7 +159,7 @@ requestLockIn(seat1,TID)</panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>459</x>
+      <x>468</x>
       <y>198</y>
       <w>369</w>
       <h>36</h>
@@ -171,10 +171,10 @@ requestLockIn(seat2,TID)</panel_attributes>
   <element>
     <id>UMLGeneric</id>
     <coordinates>
-      <x>162</x>
+      <x>171</x>
       <y>189</y>
       <w>18</w>
-      <h>243</h>
+      <h>306</h>
     </coordinates>
     <panel_attributes>
 bg=white
@@ -187,19 +187,7 @@ layer=1</panel_attributes>
     <id>Relation</id>
     <coordinates>
       <x>171</x>
-      <y>234</y>
-      <w>297</w>
-      <h>36</h>
-    </coordinates>
-    <panel_attributes>lt=&lt;-
-seatsLockedIn()</panel_attributes>
-    <additional_attributes>310.0;20.0;10.0;20.0</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates>
-      <x>162</x>
-      <y>423</y>
+      <y>486</y>
       <w>27</w>
       <h>81</h>
     </coordinates>
@@ -209,10 +197,10 @@ seatsLockedIn()</panel_attributes>
   <element>
     <id>UMLGeneric</id>
     <coordinates>
-      <x>810</x>
+      <x>819</x>
       <y>207</y>
       <w>18</w>
-      <h>225</h>
+      <h>279</h>
     </coordinates>
     <panel_attributes>
 bg=white
@@ -224,8 +212,8 @@ layer=1</panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>810</x>
-      <y>423</y>
+      <x>819</x>
+      <y>486</y>
       <w>27</w>
       <h>81</h>
     </coordinates>
@@ -235,19 +223,7 @@ layer=1</panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>459</x>
-      <y>252</y>
-      <w>369</w>
-      <h>36</h>
-    </coordinates>
-    <panel_attributes>lt=&lt;-
-seatsLockedIn()</panel_attributes>
-    <additional_attributes>10.0;20.0;390.0;20.0</additional_attributes>
-  </element>
-  <element>
-    <id>Relation</id>
-    <coordinates>
-      <x>27</x>
+      <x>36</x>
       <y>207</y>
       <w>153</w>
       <h>54</h>
@@ -259,7 +235,7 @@ m1= lockSeats(seat1,TID)</panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>819</x>
+      <x>828</x>
       <y>216</y>
       <w>153</w>
       <h>54</h>
@@ -271,8 +247,8 @@ m1= lockSeats(seat1,TID)</panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>171</x>
-      <y>360</y>
+      <x>180</x>
+      <y>414</y>
       <w>297</w>
       <h>36</h>
     </coordinates>
@@ -283,8 +259,8 @@ doCommit(TID)</panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>459</x>
-      <y>369</y>
+      <x>468</x>
+      <y>423</y>
       <w>369</w>
       <h>36</h>
     </coordinates>
@@ -295,8 +271,8 @@ doCommit(TID)</panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>171</x>
-      <y>396</y>
+      <x>180</x>
+      <y>450</y>
       <w>297</w>
       <h>36</h>
     </coordinates>
@@ -307,8 +283,8 @@ haveCommitted()</panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>459</x>
-      <y>405</y>
+      <x>468</x>
+      <y>459</y>
       <w>369</w>
       <h>36</h>
     </coordinates>
@@ -319,8 +295,8 @@ haveCommitted()</panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>819</x>
-      <y>306</y>
+      <x>828</x>
+      <y>441</y>
       <w>162</w>
       <h>54</h>
     </coordinates>
@@ -331,8 +307,8 @@ m1= commitToStorage(TID)</panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>171</x>
-      <y>279</y>
+      <x>180</x>
+      <y>261</y>
       <w>297</w>
       <h>36</h>
     </coordinates>
@@ -343,8 +319,8 @@ canCommit(TID)</panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>459</x>
-      <y>288</y>
+      <x>468</x>
+      <y>270</y>
       <w>369</w>
       <h>36</h>
     </coordinates>
@@ -355,8 +331,8 @@ canCommit(TID)</panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>171</x>
-      <y>315</y>
+      <x>180</x>
+      <y>297</y>
       <w>297</w>
       <h>36</h>
     </coordinates>
@@ -367,8 +343,8 @@ yes()</panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>18</x>
-      <y>297</y>
+      <x>27</x>
+      <y>432</y>
       <w>162</w>
       <h>54</h>
     </coordinates>
@@ -379,13 +355,111 @@ m1= commitToStorage(TID)</panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>459</x>
-      <y>324</y>
+      <x>468</x>
+      <y>306</y>
       <w>369</w>
       <h>36</h>
     </coordinates>
     <panel_attributes>lt=&lt;-
 yes()</panel_attributes>
     <additional_attributes>10.0;20.0;390.0;20.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>468</x>
+      <y>342</y>
+      <w>135</w>
+      <h>54</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;&lt;-
+m1= beginPhase2(TID)</panel_attributes>
+    <additional_attributes>10.0;40.0;50.0;20.0;10.0;10.0</additional_attributes>
+  </element>
+  <element>
+    <id>UMLNote</id>
+    <coordinates>
+      <x>612</x>
+      <y>333</y>
+      <w>126</w>
+      <h>81</h>
+    </coordinates>
+    <panel_attributes>Save in permanent
+storage that all yes()
+have been received,
+so crashes can be 
+recovered from here.</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>504</x>
+      <y>351</y>
+      <w>126</w>
+      <h>27</h>
+    </coordinates>
+    <panel_attributes>lt=.</panel_attributes>
+    <additional_attributes>120.0;10.0;10.0;10.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>468</x>
+      <y>486</y>
+      <w>108</w>
+      <h>54</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;&lt;-
+m1= finalize(TID)</panel_attributes>
+    <additional_attributes>10.0;40.0;50.0;20.0;10.0;10.0</additional_attributes>
+  </element>
+  <element>
+    <id>UMLNote</id>
+    <coordinates>
+      <x>594</x>
+      <y>486</y>
+      <w>90</w>
+      <h>54</h>
+    </coordinates>
+    <panel_attributes>Transaction 
+completed 
+succesfully.</panel_attributes>
+    <additional_attributes/>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>504</x>
+      <y>495</y>
+      <w>108</w>
+      <h>27</h>
+    </coordinates>
+    <panel_attributes>lt=.</panel_attributes>
+    <additional_attributes>100.0;10.0;10.0;10.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>54</x>
+      <y>279</y>
+      <w>135</w>
+      <h>54</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;&lt;-
+m1= commitPrep(TID)</panel_attributes>
+    <additional_attributes>130.0;40.0;100.0;20.0;130.0;10.0</additional_attributes>
+  </element>
+  <element>
+    <id>Relation</id>
+    <coordinates>
+      <x>828</x>
+      <y>288</y>
+      <w>135</w>
+      <h>54</h>
+    </coordinates>
+    <panel_attributes>lt=&lt;&lt;&lt;-
+m1= commitPrep(TID)</panel_attributes>
+    <additional_attributes>10.0;40.0;50.0;20.0;10.0;10.0</additional_attributes>
   </element>
 </diagram>
