@@ -73,16 +73,28 @@ I \textbf{server} delle compagnie aeree mantengono la lista di voli e di posti a
 
 I \textbf{client} delle agenzie di viaggio interrogano i server (conosciuti a priori) per avere la lista dei posti, e richiedono la prenotazione di una lista di posti. I client sono operati dagli addetti delle agenzie di viaggi.
 
+Ogni server possiede una lista di aerei, ognuno identificato da un codice; ogni aereo contiene una lista di posti numerati, tenendo traccia del relativo stato (occupato/libero).
 
 %============================================================================
 
 \subsection{Protocolli e algoritmi}
 % Comunicazioni tra componenti, UML sequenza, descrizione algo. distrib.
-\begin{figure}[h]
+\begin{figure}[t]
 	\centering
 		\includegraphics[width=\textwidth]{fig/reserve_sequence.pdf}
 		\caption{Diagramma di sequenza UML di un'operazione di prenotazione di due posti, eseguita con successo.}
+		\label{fig:bookseq}
 \end{figure}
+
+\paragraph{Lista posti}La richiesta della lista di posti disponibili è una semplice interrogazione di tipo \textit{request-reply}: il server invia la lista di tutti i voli e relativi posti, compreso il loro stato (disponibile/occupato).
+
+\paragraph{Prenotazione}Come mostrato in figura \ref{fig:bookseq}, l'operazione di prenotazione consiste nel richiedere il \textit{lock} delle risorse ai server coinvolti, per poi inizializzare un \textit{two phase commit protocol}.
+Se le risorse non sono disponibili, allora il protocollo 2PC farà abortire la transazione.
+
+
+Il ruolo di coordinatore della transazione può essere assunto sia dal client che da un server (work in progress). 
+
+Tutte le parti coinvolte sfruttano dei file di \textit{log} per eseguire il recupero dai guasti.
 
 %============================================================================
 
