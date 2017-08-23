@@ -9,7 +9,7 @@ outputPort FlightBookingService {
 }
 
 //devo conoscere tutte le compagnie e poter chiedere tutti i voli e i posti disponibili per ogni volo
-//interfacce
+//interface
 
 define retry
 {
@@ -19,7 +19,7 @@ define retry
                         retry
         );
 	if (global.tent>0){
-            request.seat[0].number=68;
+            request.seat[0].number=69;
             request.seat[0].flightID="AZ0123";
             request.seat[0].server=FlightBookingService.location;
             request.seat[1].number=44;
