@@ -157,16 +157,6 @@ define finalizeCommit
 	println@Console("Tutti i "+#participants+ "partecipanti possono fare il commit.")();
 	serverfail=0;
 	
-	// Save all participants in the database through a transaction
-	for(i=0, i<#participants, i++)
-	{ 
-		tr.statement[i] ="INSERT INTO coordtrans(tid, partec) VALUES (:tid, :partec)";
-		tr.statement[i].tid = transName;
-		tr.statement[i].partec = participants[i]
-	};
-	// salvo tutti i partecipanti da avvisare
-	executeTransaction@Database( tr )( ret );
-	
 	for(i=0, i<#participants, i++)  //rendere parallelo 
 	{
 		OtherServer.location = participants[i];
@@ -209,21 +199,9 @@ main
 		participants -> global.openTrans.(transName).participant;
 		
 		// Request lock-ins
+		// TODO parallelizzare
 		for(i=0, i<#seatRequest.seat, i++)
-		{
-			// also register participants
-			participants[#participants] = seatRequest.seat[i].server;
-			
-			// Register participants to the transaction on the DB for recovery
-			scope (join) 
-			{
-				install (SQLException => println@Console("Errore nella registrazione dei partecipanti!")() );
-				updateRequest ="INSERT INTO coordtrans(tid, partec) VALUES (:tid, :partec)";
-				updateRequest.tid = transName;
-				updateRequest.partec = seatRequest.seat[i].server;
-				update@Database( updateRequest )( ret )
-			};
-			
+		{			
 			// send lock-in request to participant
 			OtherServer.location = seatRequest.seat[i].server;
 			lockRequest.seat[0].number = seatRequest.seat[i].number;
@@ -233,7 +211,24 @@ main
 				+" al server "+OtherServer.location)();
  			requestLockIn@OtherServer(lockRequest);
 			
-			println@Console("Ho contattato "+OtherServer.location)()
+			println@Console("Ho contattato "+OtherServer.location)();
+			
+			// Register participants locally
+			participants[#participants] = seatRequest.seat[i].server;
+			// Register participants on the DB for recovery
+			scope (join) 
+			{
+				install (SQLException => println@Console("Errore nella registrazione dei partecipanti!")() );
+				// Save all participants in the database through a transaction
+				for(i=0, i<#participants, i++)
+				{ 
+					tr.statement[i] ="INSERT INTO coordtrans(tid, partec) VALUES (:tid, :partec)";
+					tr.statement[i].tid = transName;
+					tr.statement[i].partec = participants[i]
+				};
+				// salvo tutti i partecipanti da avvisare
+				executeTransaction@Database( tr )( ret )
+			}	
 		};
 		
 		// Give the participants time to process
