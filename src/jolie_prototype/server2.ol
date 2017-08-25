@@ -140,6 +140,14 @@ init
 	
 }
 
+/*
+==================================================================================================
+||																								||
+||											FUNCTIONS											||
+||																								||
+==================================================================================================
+*/
+
 define abortAll
 {
 	// Ask all participants to abort the transaction
@@ -199,6 +207,16 @@ define finalizeCommit
 	
 	println@Console("Transaction "+transName+" was successful! Errors: "+serverfail)()
 }
+
+
+/*
+==================================================================================================
+||																								||
+||											MAIN												||
+||																								||
+==================================================================================================
+*/
+
 
 main 
 {
@@ -295,6 +313,8 @@ main
 		}
 	}
 	
+//==================================================================================================
+	
 	[requestLockIn(lockRequest)] //Partecipant
 	{
 		transName = lockRequest.tid.issuer+lockRequest.tid.id;
@@ -316,7 +336,8 @@ main
                 executeTransaction@Database( tr )( ret )
 	}
 	
-		
+//==================================================================================================
+	
 	[canCommit(tid)(answer)  //Partecipant
 	{
 		// If the transaction ID is present in the database, then the seats are reserved correctly
@@ -330,7 +351,8 @@ main
 		println@Console(str)();
 		answer = queryResult.row.count!=0
 	}]
-	
+
+//==================================================================================================
 	
 	[doCommit(tid)(answer) //Partecipant
 	{
@@ -354,6 +376,8 @@ main
                 println@Console("Commit sulla transazione "+tid.issuer+tid.id+"!")()
 
 	}]
+
+//==================================================================================================
 
 	[abort(tid)()] //Partecipant
 	{
