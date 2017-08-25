@@ -72,6 +72,7 @@ init
                 " CREATE TABLE \"coordtrans\" ( "+
                 " `tid`	TEXT, "+
                 " `partec`	TEXT, "+
+				" `state`	INTEGER NOT NULL DEFAULT 0, " + // 0=REQUESTED, 1=CAN COMMIT, 2=COMMITTED, 3=ABORT
                 " PRIMARY KEY(tid,partec))";
             update@Database( updateRequest )( ret )
         };
@@ -146,13 +147,13 @@ define abortAll
 	{
 		OtherServer.location = participants[i];
 		println@Console("Mando abort a "+OtherServer.location)();
-		abort@OtherServer(tid)()
+		abort@OtherServer(tid)();
 		
 		// Remove participant from transaction
 		updateRequest ="DELETE FROM coordtrans WHERE tid= :tid AND partec =:partec ";
 		updateRequest.tid = transName;
 		updateRequest.partec = participants[i];
-		update@Database( updateRequest )( ret );
+		update@Database( updateRequest )( ret )
 	};
 	println@Console("Transaction "+transName+" aborted!")()
 }
@@ -161,7 +162,7 @@ define finalizeCommit
 {
 	// All participants can commit; proceed finalizing the commit phase by sending doCommit
 	println@Console("Tutti i "+#participants+ "partecipanti possono fare il commit.")();
-	serverfail=0;
+	serverfail=0;	
 	
 	for(i=0, i<#participants, i++)  //rendere parallelo 
 	{
@@ -175,16 +176,27 @@ define finalizeCommit
 			);
 			
 			doCommit@OtherServer(tid)(answ);
-			// rimuovo quelli che hanno risposto
-			println@Console(OtherServer.location+" risponde "+answ)();
-			updateRequest ="DELETE FROM coordtrans WHERE tid= :tid AND partec =:partec ";
-			updateRequest.tid = transName;
-			updateRequest.partec = participants[i];
-			update@Database( updateRequest )( ret );
 			
-			undef(participants[i]) // rimuovo anche anche in locale
+			// Register that participant has committed
+			tr.statement[i] ="UPDATE coordtrans SET state = 1 WHERE tid = :tid AND partec = :partec";
+			tr.statement[i].tid = transName;
+			tr.statement[i].partec = participants[i];
+			tr.statement[i].state=2  //COMMITTED		
 		}
 	};
+	
+	for(i=0, i<#participants, i++) 
+	{
+		// Remove participants that have committed
+		println@Console(OtherServer.location+" risponde "+answ)();
+		updateRequest ="DELETE FROM coordtrans WHERE tid= :tid AND partec =:partec ";
+		updateRequest.tid = transName;
+		updateRequest.partec = participants[i];
+		update@Database( updateRequest )( ret );
+		
+		undef(participants[i]) // rimuovo anche anche in locale
+	};
+	
 	println@Console("Transaction "+transName+" was successful! Errors: "+serverfail)()
 }
 
@@ -228,9 +240,10 @@ main
 				// Save all participants in the database through a transaction
 				for(i=0, i<#participants, i++)
 				{ 
-					tr.statement[i] ="INSERT INTO coordtrans(tid, partec) VALUES (:tid, :partec)";
+					tr.statement[i] ="INSERT INTO coordtrans(tid, partec, state) VALUES (:tid, :partec, :state)";
 					tr.statement[i].tid = transName;
-					tr.statement[i].partec = participants[i]
+					tr.statement[i].partec = participants[i];
+					tr.statement[i].state=0  //REQUESTED
 				};
 				// salvo tutti i partecipanti da avvisare
 				executeTransaction@Database( tr )( ret )
@@ -255,9 +268,20 @@ main
 			println@Console(OtherServer.location+" risponde "+answ)();
 			if(answ==false)
 			{
-				allCanCommit=false
+				allCanCommit=false;
+				// Register that participant can't commit
+				tr.statement[i] ="UPDATE coordtrans SET state = 1 WHERE tid = :tid AND partec = :partec";
+				tr.statement[i].tid = transName;
+				tr.statement[i].partec = participants[i];
+				tr.statement[i].state=3 //ABORT
+			} else
+			{
+				// Register that participant can commit
+				tr.statement[i] ="UPDATE coordtrans SET state = 1 WHERE tid = :tid AND partec = :partec";
+				tr.statement[i].tid = transName;
+				tr.statement[i].partec = participants[i];
+				tr.statement[i].state=1 //CAN COMMIT
 			}
-			
 		};
 		
 		// if all can commit, proceed; else, abort.
