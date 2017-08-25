@@ -209,7 +209,14 @@ define finalizeCommit
 		}
 	};
 	
-	for(i=0, i<#participants, i++) 
+	scope (doCommitTrans)
+	{
+		install(SQLException => println@Console("Errore nel doCommit")());
+		executeTransaction@Database(tr)(ret)
+	};
+	undef(tr);
+	
+	/*for(i=0, i<#participants, i++) 
 	{
 		// Remove participants that have committed
 		println@Console(OtherServer.location+" risponde "+answ)();
@@ -218,10 +225,10 @@ define finalizeCommit
 		updateRequest.partec = participants[i];
 		update@Database( updateRequest )( ret );
 		
-		undef(participants[i]) // rimuovo anche anche in locale
-	};
-	
-	println@Console("Transaction "+transName+" was successful! Errors: "+serverfail)()
+		
+	};*/
+
+	println@Console("----> Transaction "+transName+" was successful! Errors: "+serverfail+"<----")()
 }
 
 
@@ -383,8 +390,8 @@ main
 		qr.tid = transName;
 		query@Database(qr)(qres);
 		
-		valueToPrettyString@StringUtils(qres)(str);
-		println@Console(str)();
+		/*valueToPrettyString@StringUtils(qres)(str);
+		println@Console(str)();*/
 		
 		// Commit the changes
 		i = 0;
@@ -394,7 +401,7 @@ main
 			tr.statement[i].flight = row.flight;
 			tr.statement[i].seat = row.seat;
 			i++;
-			tr.statement[i] = "UPDATE trans SET committed = 1 "+
+			tr.statement[i] = "UPDATE trans SET committed = 1 "+ // committed but not finalized
 				"WHERE tid = :tid AND flight = :flight AND seat = :seat";
 			tr.statement[i].flight = row.flight;
 			tr.statement[i].seat = row.seat;
@@ -416,24 +423,41 @@ main
 	
 	[doCommit(tid)(answer) //Partecipant
 	{
-                // esegui transazione di commit per tid sul db
-                transName = tid.issuer+tid.id;
+		// esegui transazione di commit per tid sul db
+		transName = tid.issuer+tid.id;
+		answer = true;
+		
+		// Get list of changes to commit
+		qr = "SELECT flight, seat FROM trans WHERE tid= :tid";
+		qr.tid = transName;
+		query@Database(qr)(qres);
+		
+		/*valueToPrettyString@StringUtils(qres)(str);
+		println@Console(str)();*/
+		
+		// Commit the changes
+		i = 0;
+		for(row in qres)
+		{
+			tr.statement[i] = "UPDATE trans SET committed = 2 "+ // finalized commit
+				"WHERE tid = :tid AND flight = :flight AND seat = :seat";
+			tr.statement[i].flight = row.flight;
+			tr.statement[i].seat = row.seat;
+			tr.statement[i].tid = transName;
+			i++
+		};
+		
+		scope(canCommitTr)
+		{
+			install(SQLException => println@Console("Errore nel doCommit")();
+				answer = false);
+			executeTransaction@Database(tr)(ret)
+		};
+		
+		undef(qr);
+		undef(tr);
 
-                tr.statement[0] ="UPDATE seat SET state = (SELECT trans.newst FROM trans "+
-                        " WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid), "+
-                        " customer = (SELECT trans.newcust FROM trans  "+
-                        " WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid) "+
-                        " WHERE EXISTS ( SELECT * FROM trans  "+
-                        " WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid) ";
-                tr.statement[0].tid = transName;  
-                
-                tr.statement[1] =    "DELETE FROM trans WHERE tid= :tid";
-                tr.statement[1].tid = transName;
-                
-                executeTransaction@Database( tr )( ret );
-                
-                answer = true;
-                println@Console("Commit sulla transazione "+tid.issuer+tid.id+"!")()
+		println@Console("----> Commit sulla transazione "+tid.issuer+tid.id+"! <----")()
 
 	}]
 
