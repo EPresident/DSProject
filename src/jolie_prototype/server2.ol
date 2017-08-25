@@ -147,6 +147,12 @@ define abortAll
 		OtherServer.location = participants[i];
 		println@Console("Mando abort a "+OtherServer.location)();
 		abort@OtherServer(tid)()
+		
+		// Remove participant from transaction
+		updateRequest ="DELETE FROM coordtrans WHERE tid= :tid AND partec =:partec ";
+		updateRequest.tid = transName;
+		updateRequest.partec = participants[i];
+		update@Database( updateRequest )( ret );
 	};
 	println@Console("Transaction "+transName+" aborted!")()
 }
