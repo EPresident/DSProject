@@ -44,6 +44,27 @@ init
            .driver = "sqlite"
         };
         connect@Database( connectionInfo )( void );
+		
+		
+		//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        //!! TEST resetto il DB										!!!
+        //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
+        scope ( resets ) {
+        install ( SQLException => println@Console("seat già vuota")() ); 
+			updateRequest ="DROP TABLE seat";
+			update@Database( updateRequest )( ret )
+        };   
+		scope ( resett ) {
+        install ( SQLException => println@Console("trans già vuota")() ); 
+			updateRequest ="DROP TABLE trans";
+			update@Database( updateRequest )( ret )
+        };  
+		scope ( resetc ) {
+        install ( SQLException => println@Console("coordTrans già vuota")() ); 
+			updateRequest ="DROP TABLE coordTrans";
+			update@Database( updateRequest )( ret )
+        };  
+        
 
         scope ( createTables ) {
             install ( SQLException => println@Console("Seat table already there")() );
@@ -121,17 +142,8 @@ init
         updateRequest.seat = 44;
         updateRequest.state = 0;
         update@Database( updateRequest )( ret )
-        };
-          
-		//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        //!! per ora rendo tutti voli già presenti in db disponibili !!!
-        //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
-        scope ( reset ) {
-        install ( SQLException => println@Console("non so")() ); 
-        updateRequest ="UPDATE seat SET state = 0 ";
-        update@Database( updateRequest )( ret )
-        }        
-        
+        }
+         
         //se ero coordinatore cercare nel database se transazioni che non hanno ricevuto una risposta al commit
         //CODE
         
