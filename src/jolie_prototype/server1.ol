@@ -8,7 +8,7 @@ include "database.iol"
 
 inputPort FlightBookingService 
 {
-  Location: "socket://localhost:8001"
+  Location: "socket://localhost:8000"
   Protocol: sodep
   Interfaces: FlightBookingInterface, Coordinator
 }
@@ -29,7 +29,8 @@ execution{concurrent}
 
 constants
 {
-	serverName="Lefthansa"
+	serverName="Alaitalia",
+	dbname = "db1"
 }
 
 init
@@ -40,10 +41,32 @@ init
             .username = "sa";
             .password = "";
             .host = "";
-           .database = "file:db2";
+           .database = "file:"+dbname;
            .driver = "sqlite"
         };
         connect@Database( connectionInfo )( void );
+		
+		//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        //!! TEST resetto il DB										!!!
+        //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
+		//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        scope ( resets ) {
+        install ( SQLException => println@Console("seat già vuota")() ); 
+			updateRequest ="DROP TABLE seat";
+			update@Database( updateRequest )( ret )
+        };   
+		scope ( resett ) {
+        install ( SQLException => println@Console("trans già vuota")() ); 
+			updateRequest ="DROP TABLE trans";
+			update@Database( updateRequest )( ret )
+        };  
+		scope ( resetc ) {
+        install ( SQLException => println@Console("coordTrans già vuota")() ); 
+			updateRequest ="DROP TABLE coordTrans";
+			update@Database( updateRequest )( ret )
+        };  
+        
 
         scope ( createTables ) {
             install ( SQLException => println@Console("Seat table already there")() );
@@ -62,7 +85,8 @@ init
                 " `tid`	TEXT NOT NULL, "+
                 " `seat`	INTEGER NOT NULL, "+
                 " `flight`	TEXT NOT NULL, "+
-                " `newst`	TEXT, "+
+                " `newst`	INTEGER NOT NULL, "+
+				" `committed` INTEGER NOT NULL DEFAULT 0, "+ // 0 = TENTATIVE, 1 = COMMITTED 2= COMMITTED (final)
                 " PRIMARY KEY(tid,seat,flight))";
             update@Database( updateRequest )( ret )
         };
@@ -72,6 +96,7 @@ init
                 " CREATE TABLE \"coordtrans\" ( "+
                 " `tid`	TEXT, "+
                 " `partec`	TEXT, "+
+				" `state`	INTEGER NOT NULL DEFAULT 0, " + // 0=REQUESTED, 1=CAN COMMIT, 2=COMMITTED, 3=ABORT
                 " PRIMARY KEY(tid,partec))";
             update@Database( updateRequest )( ret )
         };
@@ -120,17 +145,8 @@ init
         updateRequest.seat = 44;
         updateRequest.state = 0;
         update@Database( updateRequest )( ret )
-        };
-          
-		//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        //!! per ora rendo tutti voli già presenti in db disponibili !!!
-        //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
-        scope ( reset ) {
-        install ( SQLException => println@Console("non so")() ); 
-        updateRequest ="UPDATE seat SET state = 0 ";
-        update@Database( updateRequest )( ret )
-        }        
-        
+        }
+         
         //se ero coordinatore cercare nel database se transazioni che non hanno ricevuto una risposta al commit
         //CODE
         
@@ -139,14 +155,44 @@ init
 	
 }
 
+/*
+==================================================================================================
+||																								||
+||											FUNCTIONS											||
+||																								||
+==================================================================================================
+*/
+
 define abortAll
 {
-	// Ask all participants to abort the transaction
+
+	// Register abort in progress
 	for(i=0, i<#participants, i++)
+	{
+				
+		// Register that the transaction has aborted
+		tr.statement[i] ="UPDATE coordtrans SET state = 3 "+ // ABORTED
+		"WHERE tid = :tid AND partec = :partec";
+		tr.statement[i].tid = transName;
+		tr.statement[i].partec = participants[i]
+	};
+
+	executeTransaction@Database(tr)(ret);
+	undef(tr);
+	
+	// Ask all participants to abort the transaction
+	for(i=0, i<#participants, i++) //rendere parallelo 
 	{
 		OtherServer.location = participants[i];
 		println@Console("Mando abort a "+OtherServer.location)();
-		abort@OtherServer(tid)()
+		abort@OtherServer(tid)();
+		
+		// Remove participant from transaction
+		updateRequest ="DELETE FROM coordtrans WHERE tid= :tid AND partec =:partec ";
+		updateRequest.tid = transName;
+		updateRequest.partec = participants[i];
+		update@Database( updateRequest )( ret )
+
 	};
 	println@Console("Transaction "+transName+" aborted!")()
 }
@@ -154,18 +200,9 @@ define abortAll
 define finalizeCommit
 {
 	// All participants can commit; proceed finalizing the commit phase by sending doCommit
-	println@Console("Tutti i "+#participants+ "partecipanti possono fare il commit.")();
-	serverfail=0;
-	
-	// Save all participants in the database through a transaction
-	for(i=0, i<#participants, i++)
-	{ 
-		tr.statement[i] ="INSERT INTO coordtrans(tid, partec) VALUES (:tid, :partec)";
-		tr.statement[i].tid = transName;
-		tr.statement[i].partec = participants[i]
-	};
-	// salvo tutti i partecipanti da avvisare
-	executeTransaction@Database( tr )( ret );
+	println@Console("\n --------------------------------------------------------\n"+
+	"Tutti i "+#participants+ "partecipanti possono fare il commit.")();
+	serverfail=0;	
 	
 	for(i=0, i<#participants, i++)  //rendere parallelo 
 	{
@@ -179,18 +216,79 @@ define finalizeCommit
 			);
 			
 			doCommit@OtherServer(tid)(answ);
-			// rimuovo quelli che hanno risposto
-			println@Console(OtherServer.location+" risponde "+answ)();
-			updateRequest ="DELETE FROM coordtrans WHERE tid= :tid AND partec =:partec ";
-			updateRequest.tid = transName;
-			updateRequest.partec = participants[i];
-			update@Database( updateRequest )( ret );
 			
-			undef(participants[i]) // rimuovo anche anche in locale
+			// Register that participant has committed
+			tr.statement[i] ="UPDATE coordtrans SET state = 2 " // COMMITTED
+			+" WHERE tid = :tid AND partec = :partec";
+			tr.statement[i].tid = transName;
+			tr.statement[i].partec = participants[i]		
 		}
 	};
-	println@Console("Transaction "+transName+" was successful! Errors: "+serverfail)()
+	
+	scope (doCommitTrans)
+	{
+		install(SQLException => println@Console("Errore nel doCommit")());
+		executeTransaction@Database(tr)(ret)
+	};
+	undef(tr);
+	
+	/*for(i=0, i<#participants, i++) 
+	{
+		// Remove participants that have committed
+		println@Console(OtherServer.location+" risponde "+answ)();
+		updateRequest ="DELETE FROM coordtrans WHERE tid= :tid AND partec =:partec ";
+		updateRequest.tid = transName;
+		updateRequest.partec = participants[i];
+		update@Database( updateRequest )( ret );
+		
+		
+	};*/
+
+	println@Console("----> Transaction "+transName+" was successful! Errors: "+serverfail+"<----")()
 }
+
+define showDBS
+{
+	println@Console("\n\t\t---SEAT---")();
+	qr = "SELECT * FROM seat";
+	query@Database(qr)(qres);
+	valueToPrettyString@StringUtils(qres)(str);
+	println@Console(str)();
+	
+	println@Console("\t\t---TRANS---")();
+	qr = "SELECT * FROM trans";
+	query@Database(qr)(qres);
+	valueToPrettyString@StringUtils(qres)(str);
+	println@Console(str)();
+	
+	println@Console("\t\t---COORDTRANS---")();
+	qr = "SELECT * FROM coordTrans";
+	query@Database(qr)(qres);
+	valueToPrettyString@StringUtils(qres)(str);
+	println@Console(str+"\n")()
+}
+
+
+// TODO
+/*define coordinatorRecovery
+{
+
+}*/
+
+// TODO
+/*define transactionRecovery
+{
+
+}*/
+
+/*
+==================================================================================================
+||																								||
+||											MAIN												||
+||																								||
+==================================================================================================
+*/
+
 
 main 
 {
@@ -204,26 +302,15 @@ main
 		transName = tid.issuer+tid.id;		
 		
 		global.openTrans.(transName) << tid;
-		println@Console("Aperta transazione "+transName)();
+		println@Console("\nAperta transazione "+transName)();
+		println@Console("Posti richiesti: "+#seatRequest.seat+"\n")();
 
 		participants -> global.openTrans.(transName).participant;
 		
 		// Request lock-ins
+		// TODO parallelizzare
 		for(i=0, i<#seatRequest.seat, i++)
-		{
-			// also register participants
-			participants[#participants] = seatRequest.seat[i].server;
-			
-			// Register participants to the transaction on the DB for recovery
-			scope (join) 
-			{
-				install (SQLException => println@Console("Errore nella registrazione dei partecipanti!")() );
-				updateRequest ="INSERT INTO coordtrans(tid, partec) VALUES (:tid, :partec)";
-				updateRequest.tid = transName;
-				updateRequest.partec = seatRequest.seat[i].server;
-				update@Database( updateRequest )( ret )
-			};
-			
+		{			
 			// send lock-in request to participant
 			OtherServer.location = seatRequest.seat[i].server;
 			lockRequest.seat[0].number = seatRequest.seat[i].number;
@@ -233,18 +320,36 @@ main
 				+" al server "+OtherServer.location)();
  			requestLockIn@OtherServer(lockRequest);
 			
-			println@Console("Ho contattato "+OtherServer.location)()
+			println@Console("Ho contattato "+OtherServer.location)();
+			
+			// Register participants locally
+			participants[#participants] = seatRequest.seat[i].server	
 		};
 		
+		// Register participants on the DB for recovery
+		scope (join) 
+		{
+			install (SQLException => println@Console("Partecipante duplicato")());
+			// Save all participants in the database through a transaction
+			for(i=0, i<#participants, i++)
+			{ 
+				tr.statement[i] ="INSERT INTO coordtrans(tid, partec, state) VALUES (:tid, :partec, :state)";
+				tr.statement[i].tid = transName;
+				tr.statement[i].partec = participants[i];
+				tr.statement[i].state=0  //REQUESTED
+			};
+			// salvo tutti i partecipanti da avvisare
+			executeTransaction@Database( tr )( ret );
+			undef(tr)
+		};	
+		
 		// Give the participants time to process
-		sleep@Time(2000)();
+		sleep@Time(500)();
 
 		// Done requesting locks, start 2 phase commit
 		allCanCommit=true;
 		println@Console("Partecipanti: "+#participants)();
-		valueToPrettyString@StringUtils(participants)(str);
-		println@Console(str)();
-
+		
 		for(i=0, i<#participants, i++)
 		{
 			// Ask if can commit
@@ -254,10 +359,29 @@ main
 			println@Console(OtherServer.location+" risponde "+answ)();
 			if(answ==false)
 			{
-				allCanCommit=false
+				allCanCommit=false;
+				// Register that participant can't commit
+				tr.statement[i] ="UPDATE coordtrans SET state = 1 WHERE tid = :tid AND partec = :partec";
+				tr.statement[i].tid = transName;
+				tr.statement[i].partec = participants[i];
+				tr.statement[i].state=3 //ABORT
+			} else
+			{
+				// Register that participant can commit
+				tr.statement[i] ="UPDATE coordtrans SET state = 1 WHERE tid = :tid AND partec = :partec";
+				tr.statement[i].tid = transName;
+				tr.statement[i].partec = participants[i];
+				tr.statement[i].state=1 //CAN COMMIT
 			}
-			
 		};
+		
+		scope (canCommitTR)
+		{
+			install (SQLException => println@Console("Errore nello scrivere i risultati del canCommit")());
+			executeTransaction@Database( tr )( ret );
+			undef(tr)
+		};
+		
 		
 		// if all can commit, proceed; else, abort.
 		if(allCanCommit==true)
@@ -270,69 +394,136 @@ main
 		}
 	}
 	
+//==================================================================================================
+	
 	[requestLockIn(lockRequest)] //Partecipant
 	{
+		// Write a tentative version of the request
 		transName = lockRequest.tid.issuer+lockRequest.tid.id;
-
-                tr.statement[0] = "INSERT INTO trans(tid, seat,flight, newst, newcust) SELECT :tid, :seat, :flight, :newst, :newcust "
-                +"WHERE 0 = (SELECT state FROM seat WHERE flight=:flight AND seat=:seat)" ;
-                tr.statement[0].flight = lockRequest.seat.flightID;
-                tr.statement[0].seat = lockRequest.seat.number;
-                tr.statement[0].tid = transName;
-                tr.statement[0].newst = 2;
-                tr.statement[0].newcust = transName;
-                
-                tr.statement[1] ="UPDATE seat SET state = 1 WHERE  "+
-                        "seat = :seat AND flight = :flight AND state=0";
-                tr.statement[1].tid = transName;  
-                tr.statement[1].flight = lockRequest.seat.flightID;
-                tr.statement[1].seat = lockRequest.seat.number;
-
-                executeTransaction@Database( tr )( ret )
+		scope (writeReq)
+		{	
+			install (SQLException => println@Console("Errore nella scrittura della richiesta!")() );
+			ur = "INSERT INTO trans(tid, seat, flight, newst, committed) SELECT :tid, :seat, :flight, :newst, :committed "
+			/*+"WHERE 0 = (SELECT state FROM seat WHERE flight=:flight AND seat=:seat)"*/ ;
+			ur.flight = lockRequest.seat.flightID;
+			ur.seat = lockRequest.seat.number;
+			ur.tid = transName;
+			ur.newst = 1; // occupied
+			ur.committed = 0; // tentative
+			
+			update@Database( ur )( ret )
+		}
 	}
 	
-		
+//==================================================================================================
+	
 	[canCommit(tid)(answer)  //Partecipant
 	{
-		// If the transaction ID is present in the database, then the seats are reserved correctly
+		answer = true;
 		transName = tid.issuer+tid.id;
-		// cerca sul db se è presente tid nell'elenco
-		queryRequest =
-			"SELECT count(*) AS count FROM trans WHERE tid= :tid " ;
-		queryRequest.tid = transName;
-		query@Database( queryRequest )( queryResult );
-		valueToPrettyString@StringUtils(queryResult)(str);
-		println@Console(str)();
-		answer = queryResult.row.count!=0
+
+		// Get list of changes to commit
+		qr = "SELECT flight, seat FROM trans WHERE tid= :tid";
+		qr.tid = transName;
+		query@Database(qr)(qres);
+		
+		valueToPrettyString@StringUtils(qres)(str);
+		println@Console("qres: "+str)();
+				
+		
+		scope(resourceCheck)
+		{
+			install(ResourceUnavailable => answer=false;
+			println@Console("Risorse non disponibili per la transazione "+transName+"!")());
+			// Commit the changes
+			i = 0;
+			for(row in qres)
+			{
+				undef(qr);
+				qr = "SELECT seat FROM seat WHERE flight = :flight AND seat = :seat AND state = 0";
+				qr.flight = row.row.flight;
+				qr.seat = row.row.seat;
+				query@Database(qr)(resChk);
+				
+				/*valueToPrettyString@StringUtils(resChk)(str);
+				println@Console("ResChk: "+str)();*/
+				
+				if(#resChk.row == 0) 
+				{
+					// Resource unavailable
+					throw (ResourceUnavailable)
+				};
+				
+				tr.statement[i] = "UPDATE seat SET state = 1 WHERE flight = :flight AND seat = :seat AND state = 0";
+				tr.statement[i].flight = row.row.flight;
+				tr.statement[i].seat = row.row.seat;
+				i++;
+				tr.statement[i] = "UPDATE trans SET committed = 1 "+ // committed but not finalized
+					"WHERE tid = :tid AND flight = :flight AND seat = :seat";
+				tr.statement[i].flight = row.row.flight;
+				tr.statement[i].seat = row.row.seat;
+				tr.statement[i].tid = transName
+			};
+			
+			scope(canCommitTr)
+			{
+				install(SQLException => println@Console("Errore nel canCommit")();
+					answer = false);
+				executeTransaction@Database(tr)(ret)
+			};
+			
+			undef(qr);
+			undef(tr)
+		}
 	}]
-	
+
+//==================================================================================================
 	
 	[doCommit(tid)(answer) //Partecipant
 	{
-                // esegui transazione di commit per tid sul db
-                transName = tid.issuer+tid.id;
+		// esegui transazione di commit per tid sul db
+		transName = tid.issuer+tid.id;
+		answer = true;
+		
+		// Get list of changes to commit
+		qr = "SELECT flight, seat FROM trans WHERE tid= :tid";
+		qr.tid = transName;
+		query@Database(qr)(qres);
+		
+		/*valueToPrettyString@StringUtils(qres)(str);
+		println@Console(str)();*/
+		
+		// Commit the changes
+		i = 0;
+		for(row in qres)
+		{
+			tr.statement[i] = "UPDATE trans SET committed = 2 "+ // finalized commit
+				"WHERE tid = :tid AND flight = :flight AND seat = :seat";
+			tr.statement[i].flight = row.row.flight;
+			tr.statement[i].seat = row.row.seat;
+			tr.statement[i].tid = transName;
+			i++
+		};
+		
+		scope(canCommitTr)
+		{
+			install(SQLException => println@Console("Errore nel doCommit")();
+				answer = false);
+			executeTransaction@Database(tr)(ret)
+		};
+		
+		undef(qr);
+		undef(tr);
 
-                tr.statement[0] ="UPDATE seat SET state = (SELECT trans.newst FROM trans "+
-                        " WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid), "+
-                        " customer = (SELECT trans.newcust FROM trans  "+
-                        " WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid) "+
-                        " WHERE EXISTS ( SELECT * FROM trans  "+
-                        " WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid) ";
-                tr.statement[0].tid = transName;  
-                
-                tr.statement[1] =    "DELETE FROM trans WHERE tid= :tid";
-                tr.statement[1].tid = transName;
-                
-                executeTransaction@Database( tr )( ret );
-                
-                answer = true;
-                println@Console("Commit sulla transazione "+tid.issuer+tid.id+"!")()
+		println@Console("----> Commit sulla transazione "+tid.issuer+tid.id+"! <----")()
 
 	}]
 
+//==================================================================================================
+
 	[abort(tid)()] //Partecipant
 	{
-		transName = tid.issuer+tid.id;
+		/*transName = tid.issuer+tid.id;
 		//esegui transazione di abort per tid sul db
 		tr.statement[0] ="UPDATE seat SET state = 0, "+
 			" customer = (SELECT trans.newcust FROM trans  "+
@@ -344,7 +535,41 @@ main
 		tr.statement[1] ="DELETE FROM trans WHERE tid= :tid";
 		tr.statement[1].tid = transName;
 		
-		executeTransaction@Database( tr )( ret );
+		executeTransaction@Database( tr )( ret );*/
+		
+		// esegui transazione di commit per tid sul db
+		transName = tid.issuer+tid.id;
+		
+		// Get list of changes to undo
+		qr = "SELECT flight, seat, committed FROM trans WHERE tid= :tid";
+		qr.tid = transName;
+		query@Database(qr)(qres);
+		
+		// Undo the changes
+		i = 0;
+		for(row in qres)
+		{
+			if(row.committed != 0)
+			{
+				tr.statement[i] = "UPDATE seat SET state = 0 "+
+				"WHERE tid = :tid AND flight = :flight AND seat = :seat";
+				tr.statement[i].flight = row.row.flight;
+				tr.statement[i].seat = row.row.seat;
+				tr.statement[i].tid = transName;
+				i++
+			}		
+		};
+		tr.statement[i] = "DELETE FROM trans WHERE tid = :tid ";
+		tr.statement[i].tid = transName;
+		
+		scope(abortTr)
+		{
+			install(SQLException => println@Console("Errore nell'abort")());
+			executeTransaction@Database(tr)(ret)
+		};
+		
+		undef(qr);
+		undef(tr);
 		
 		println@Console("Abortita la transazione "+tid.issuer+tid.id+"!")()
 	}
