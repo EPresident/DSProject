@@ -8,21 +8,21 @@ include "database.iol"
 
 inputPort FlightBookingService 
 {
-  Location: "socket://localhost:8001"
-  Protocol: sodep
-  Interfaces: FlightBookingInterface, Coordinator
+	Location: "socket://localhost:8001"
+	Protocol: sodep
+	Interfaces: FlightBookingInterface, Coordinator
 }
 
 outputPort OtherServer 
 {
-  Protocol: sodep
-  Interfaces: FlightBookingInterface
+	Protocol: sodep
+	Interfaces: FlightBookingInterface
 }
 
 outputPort Coordinator 
 {
-  Protocol: sodep
-  Interfaces: Coordinator
+	Protocol: sodep
+	Interfaces: Coordinator
 }
 
 execution{concurrent}
@@ -30,13 +30,15 @@ execution{concurrent}
 constants
 {
 	serverName="Lefthansa",
-	dbname = "db2"
+	dbname = "db2",
+	location = "socket://localhost:8001"
 }
 
 init
 {
 	println@Console("Server "+serverName+" initialized.")();
 	global.id = 0;
+	
 	with ( connectionInfo ) {
             .username = "sa";
             .password = "";
@@ -145,12 +147,31 @@ init
         updateRequest.seat = 44;
         updateRequest.state = 0;
         update@Database( updateRequest )( ret )
-        }
+        };
          
         //se ero coordinatore cercare nel database se transazioni che non hanno ricevuto una risposta al commit
         //CODE
         
+		scope ( recoveryTest ) {
+			install ( SQLException => println@Console("vfadasda")() ); 
+			updateRequest =
+				"INSERT INTO coordTrans(tid, partec, state) " +
+				"VALUES (:tid, :partec, :state)";
+			updateRequest.tid = "Lefthansa4B0R7";
+			updateRequest.partec = "socket://localhost:8001";
+			updateRequest.state = 0;
+			update@Database( updateRequest )( ret );
+			updateRequest =
+				"INSERT INTO coordTrans(tid, partec, state) " +
+				"VALUES (:tid, :partec, :state)";
+			updateRequest.tid = "Lefthansa4B0R7";
+			updateRequest.partec = "socket://localhost:8000";
+			updateRequest.state = 0;
+			update@Database( updateRequest )( ret )
+        };
 
+		
+		coordinatorRecovery
 
 	
 }
@@ -231,18 +252,6 @@ define finalizeCommit
 		executeTransaction@Database(tr)(ret)
 	};
 	undef(tr);
-	
-	/*for(i=0, i<#participants, i++) 
-	{
-		// Remove participants that have committed
-		println@Console(OtherServer.location+" risponde "+answ)();
-		updateRequest ="DELETE FROM coordtrans WHERE tid= :tid AND partec =:partec ";
-		updateRequest.tid = transName;
-		updateRequest.partec = participants[i];
-		update@Database( updateRequest )( ret );
-		
-		
-	};*/
 
 	println@Console("----> Transaction "+transName+" was successful! Errors: "+serverfail+"<----")()
 }
@@ -268,12 +277,93 @@ define showDBS
 	println@Console(str+"\n")()
 }
 
-
-// TODO
-/*define coordinatorRecovery
+define abort 
 {
+	// Variable transName must be defined
 
-}*/
+	// esegui transazione di commit per tid sul db
+	println@Console("Abortisco la transazione "+transName+"...")();
+	
+	// Get list of changes to undo
+	qr = "SELECT flight, seat, committed FROM trans WHERE tid= :tid";
+	qr.tid = transName;
+	query@Database(qr)(qres);
+	
+	// Undo the changes
+	i = 0;
+	for(row in qres)
+	{
+		if(row.row.committed != 0)
+		{
+			tr.statement[i] = "UPDATE seat SET state = 0 "+
+			"WHERE tid = :tid AND flight = :flight AND seat = :seat";
+			tr.statement[i].flight = row.row.flight;
+			tr.statement[i].seat = row.row.seat;
+			tr.statement[i].tid = transName;
+			i++
+		}		
+	};
+	tr.statement[i] = "DELETE FROM trans WHERE tid = :tid ";
+	tr.statement[i].tid = transName;
+	
+	scope(abortTr)
+	{
+		install(SQLException => println@Console("Errore nell'abort")());
+		executeTransaction@Database(tr)(ret)
+	};
+	
+	undef(qr);
+	undef(tr);
+	
+	println@Console("Abortita la transazione "+transName+"!")()
+}
+
+
+define coordinatorRecovery
+{
+	// Look for leftover transactions
+	// prefix cr_ is to avoid variable clashes with abort procedure
+	println@Console("\t\t---COORDINATOR RECOVERY---")();
+	cr_qr = "SELECT tid, partec FROM coordTrans " +
+	" WHERE state = 0 OR state = 1 OR state = 3";
+	query@Database(cr_qr)(cr_qres);
+	
+	for( cr_row in cr_qres.row )
+	{	
+		cr_deleteEntry = true;
+		if( cr_row.partec == location )
+		{
+			println@Console("Mando abort a me stesso.")();
+			transName = cr_row.tid;
+			abort
+		} else
+		{
+			OtherServer.location = cr_row.partec;
+			tid.location = location;
+			println@Console("tid.location = "+tid.location)();
+			tid.id = 69;
+			tid.issuer = "PornHub";
+			println@Console("Mando abort a "+OtherServer.location)();
+			scope (cr_abortReq)
+			{
+				install(default => println@Console("Errore nell'abort, tengo la entry.")();
+					cr_deleteEntry = false);
+				abort@OtherServer(tid)()
+			}
+		};
+		
+		if( cr_deleteEntry )
+		{
+			cr_ur = "DELETE FROM coordTrans WHERE partec = :partec AND tid = :tid";
+			cr_ur.tid = cr_row.tid;
+			cr_ur.partec = cr_row.partec;
+			update@Database(cr_ur)(ret)
+		}
+	};
+	undef(OtherServer.location);
+	println@Console("--- Coordinator recovery done.---")();
+	showDBS
+}
 
 // TODO
 /*define transactionRecovery
@@ -296,7 +386,8 @@ main
 	{
 		tid.issuer = serverName;
 		tid.id = ++global.id;
-		tid.location = ""+FlightBookingService.Location
+		tid.location = ""+FlightBookingService.Location;
+		println@Console("tid.location ="+tid.location)()
 	}]
 	{
 		transName = tid.issuer+tid.id;		
@@ -523,54 +614,7 @@ main
 
 	[abort(tid)()] //Partecipant
 	{
-		/*transName = tid.issuer+tid.id;
-		//esegui transazione di abort per tid sul db
-		tr.statement[0] ="UPDATE seat SET state = 0, "+
-			" customer = (SELECT trans.newcust FROM trans  "+
-			" WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid) "+
-			" WHERE EXISTS ( SELECT * FROM trans  "+
-			" WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid) ";
-		tr.statement[0].tid = transName;  
-		
-		tr.statement[1] ="DELETE FROM trans WHERE tid= :tid";
-		tr.statement[1].tid = transName;
-		
-		executeTransaction@Database( tr )( ret );*/
-		
-		// esegui transazione di commit per tid sul db
 		transName = tid.issuer+tid.id;
-		
-		// Get list of changes to undo
-		qr = "SELECT flight, seat, committed FROM trans WHERE tid= :tid";
-		qr.tid = transName;
-		query@Database(qr)(qres);
-		
-		// Undo the changes
-		i = 0;
-		for(row in qres)
-		{
-			if(row.committed != 0)
-			{
-				tr.statement[i] = "UPDATE seat SET state = 0 "+
-				"WHERE tid = :tid AND flight = :flight AND seat = :seat";
-				tr.statement[i].flight = row.row.flight;
-				tr.statement[i].seat = row.row.seat;
-				tr.statement[i].tid = transName;
-				i++
-			}		
-		};
-		tr.statement[i] = "DELETE FROM trans WHERE tid = :tid ";
-		tr.statement[i].tid = transName;
-		
-		scope(abortTr)
-		{
-			install(SQLException => println@Console("Errore nell'abort")());
-			executeTransaction@Database(tr)(ret)
-		};
-		
-		undef(qr);
-		undef(tr);
-		
-		println@Console("Abortita la transazione "+tid.issuer+tid.id+"!")()
+		abort
 	}
 }
