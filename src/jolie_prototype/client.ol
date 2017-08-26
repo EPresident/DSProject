@@ -27,7 +27,7 @@ define retry
             request.seat[1].server="socket://localhost:8000";
             println@Console(request)();
             book@FlightBookingService(request)(tid);
-            println@Console("Ricevuto TID "+tid.issuer+tid.id)()
+            println@Console("Ricevuto TID "+tid)()
         } else {
             println@Console( "Server non disponibile")()
         }
