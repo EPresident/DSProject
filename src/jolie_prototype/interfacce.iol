@@ -1,16 +1,15 @@
 type seat: void{
 	.free: bool
-	.tid?: tid
+	.tid?: string
 }
 
 type flight: void{
 	.seat[1,*]: seat
 }
 
-type tid: void{
-	.issuer: string
-	.id: int
-	.location: string
+type transInfo: void{
+	.tid: string
+	.coordLocation: string
 }
 
 type seatRequest: void{
@@ -26,22 +25,22 @@ type lockRequest: void{
 		.number: int
 		.flightID: string
 	}
-	.tid: tid
+	.transInfo: transInfo
 }
 
 interface FlightBookingInterface{
 	OneWay: 
 		requestLockIn(lockRequest), 			
 	RequestResponse:
-		canCommit(tid)(bool),
-		doCommit(tid)(bool),
-		abort(tid)(void)
+		canCommit(string)(bool),
+		doCommit(string)(bool),
+		abort(string)(void)
 }
 
 interface Coordinator{
 	//OneWay: 
 	RequestResponse: 
-		getDecision(tid)(bool),
-		doCommit(tid)(bool),
-		book(seatRequest)(tid)
+		getDecision(string)(bool),
+		doCommit(string)(bool),
+		book(seatRequest)(string)
 }
