@@ -161,6 +161,23 @@ init
 			updateRequest.partec = "socket://localhost:8001";
 			updateRequest.state = 0;
 			update@Database( updateRequest )( ret );
+			
+			updateRequest =
+				"INSERT INTO trans(tid, seat, flight, newst, committed) " +
+				"VALUES (:tid, :seat, :flight, 1, 0)";
+			updateRequest.tid = "Lefthansa4B0R7";
+			updateRequest.seat = 666;
+			updateRequest.flight = "SA0666";
+			update@Database( updateRequest )( ret );
+			
+			updateRequest =
+				"INSERT INTO trans(tid, seat, flight, newst, committed) " +
+				"VALUES (:tid, :seat, :flight, 1, 1)";
+			updateRequest.tid = "Lefthansa4B0R7";
+			updateRequest.seat = 999;
+			updateRequest.flight = "SA0666";
+			update@Database( updateRequest )( ret );
+			
 			updateRequest =
 				"INSERT INTO coordTrans(tid, partec, state) " +
 				"VALUES (:tid, :partec, :state)";
@@ -206,7 +223,7 @@ define abortAll
 	{
 		OtherServer.location = participants[i];
 		println@Console("Mando abort a "+OtherServer.location)();
-		abort@OtherServer(tid)();
+		abort@OtherServer(transName)();
 		
 		// Remove participant from transaction
 		updateRequest ="DELETE FROM coordtrans WHERE tid= :tid AND partec =:partec ";
@@ -236,7 +253,7 @@ define finalizeCommit
 					serverfail++
 			);
 			
-			doCommit@OtherServer(tid)(answ);
+			doCommit@OtherServer(transName)(answ);
 			
 			// Register that participant has committed
 			tr.statement[i] ="UPDATE coordtrans SET state = 2 " // COMMITTED
@@ -252,7 +269,6 @@ define finalizeCommit
 		executeTransaction@Database(tr)(ret)
 	};
 	undef(tr);
-
 	println@Console("----> Transaction "+transName+" was successful! Errors: "+serverfail+"<----")()
 }
 
@@ -277,6 +293,13 @@ define showDBS
 	println@Console(str+"\n")()
 }
 
+define showInternalState
+{
+	println@Console("\n\t\t---Open transactions---")();
+	valueToPrettyString@StringUtils(global.openTrans)(str);
+	println@Console(str)()
+}
+
 define abort 
 {
 	// Variable transName must be defined
@@ -291,14 +314,15 @@ define abort
 	
 	// Undo the changes
 	i = 0;
-	for(row in qres)
+	for(row in qres.row)
 	{
-		if(row.row.committed != 0)
+		if(row.committed != 0)
 		{
+			println@Console("Annullo i cambiamenti...")();
 			tr.statement[i] = "UPDATE seat SET state = 0 "+
 			"WHERE tid = :tid AND flight = :flight AND seat = :seat";
-			tr.statement[i].flight = row.row.flight;
-			tr.statement[i].seat = row.row.seat;
+			tr.statement[i].flight = row.flight;
+			tr.statement[i].seat = row.seat;
 			tr.statement[i].tid = transName;
 			i++
 		}		
@@ -321,6 +345,7 @@ define abort
 
 define coordinatorRecovery
 {
+	//showDBS;
 	// Look for leftover transactions
 	// prefix cr_ is to avoid variable clashes with abort procedure
 	println@Console("\t\t---COORDINATOR RECOVERY---")();
@@ -339,10 +364,7 @@ define coordinatorRecovery
 		} else
 		{
 			OtherServer.location = cr_row.partec;
-			tid.location = location;
-			println@Console("tid.location = "+tid.location)();
-			tid.id = 69;
-			tid.issuer = "PornHub";
+			tid = cr_row.tid;
 			println@Console("Mando abort a "+OtherServer.location)();
 			scope (cr_abortReq)
 			{
@@ -361,8 +383,8 @@ define coordinatorRecovery
 		}
 	};
 	undef(OtherServer.location);
-	println@Console("--- Coordinator recovery done.---")();
-	showDBS
+	println@Console("--- Coordinator recovery done.---")()//;
+	//showDBS
 }
 
 // TODO
@@ -382,15 +404,15 @@ define coordinatorRecovery
 
 main 
 {
-	[book(seatRequest)(tid)  //Coordinator
+	[book(seatRequest)(receipt)  //Coordinator
 	{
-		tid.issuer = serverName;
-		tid.id = ++global.id;
-		tid.location = ""+FlightBookingService.Location;
-		println@Console("tid.location ="+tid.location)()
+		getRandomUUID@StringUtils()(receipt)
 	}]
 	{
-		transName = tid.issuer+tid.id;		
+		transName = serverName+(++id);
+
+		transInfo.tid = transName;
+		transInfo.coordLocation = location;
 		
 		global.openTrans.(transName) << tid;
 		println@Console("\nAperta transazione "+transName)();
@@ -406,7 +428,7 @@ main
 			OtherServer.location = seatRequest.seat[i].server;
 			lockRequest.seat[0].number = seatRequest.seat[i].number;
 			lockRequest.seat[0].flightID = seatRequest.seat[i].flightID;
-			lockRequest.tid << tid;
+			lockRequest.transInfo << transInfo;
 			println@Console("Richiedo il posto "+lockRequest.seat[0].number+" del volo "+lockRequest.seat[0].flightID
 				+" al server "+OtherServer.location)();
  			requestLockIn@OtherServer(lockRequest);
@@ -446,7 +468,7 @@ main
 			// Ask if can commit
 			OtherServer.location = participants[i];
 			println@Console("Chiedo canCommit a "+OtherServer.location)();
-			canCommit@OtherServer(tid)(answ);
+			canCommit@OtherServer(transName)(answ);
 			println@Console(OtherServer.location+" risponde "+answ)();
 			if(answ==false)
 			{
@@ -482,15 +504,17 @@ main
 		else
 		{
 			abortAll
-		}
+		};
+		undef(global.openTrans.(transName))
 	}
 	
 //==================================================================================================
 	
+	// FIXME una lockRequest può avere più seat
 	[requestLockIn(lockRequest)] //Partecipant
 	{
 		// Write a tentative version of the request
-		transName = lockRequest.tid.issuer+lockRequest.tid.id;
+		transName = lockRequest.transInfo.tid;
 		scope (writeReq)
 		{	
 			install (SQLException => println@Console("Errore nella scrittura della richiesta!")() );
@@ -511,29 +535,28 @@ main
 	[canCommit(tid)(answer)  //Partecipant
 	{
 		answer = true;
-		transName = tid.issuer+tid.id;
 
 		// Get list of changes to commit
 		qr = "SELECT flight, seat FROM trans WHERE tid= :tid";
-		qr.tid = transName;
+		qr.tid = tid;
 		query@Database(qr)(qres);
 		
-		valueToPrettyString@StringUtils(qres)(str);
-		println@Console("qres: "+str)();
+		/*valueToPrettyString@StringUtils(qres)(str);
+		println@Console("qres: "+str)();*/
 				
 		
 		scope(resourceCheck)
 		{
 			install(ResourceUnavailable => answer=false;
-			println@Console("Risorse non disponibili per la transazione "+transName+"!")());
+			println@Console("Risorse non disponibili per la transazione "+tid+"!")());
 			// Commit the changes
 			i = 0;
-			for(row in qres)
+			for(row in qres.row)
 			{
 				undef(qr);
 				qr = "SELECT seat FROM seat WHERE flight = :flight AND seat = :seat AND state = 0";
-				qr.flight = row.row.flight;
-				qr.seat = row.row.seat;
+				qr.flight = row.flight;
+				qr.seat = row.seat;
 				query@Database(qr)(resChk);
 				
 				/*valueToPrettyString@StringUtils(resChk)(str);
@@ -546,14 +569,14 @@ main
 				};
 				
 				tr.statement[i] = "UPDATE seat SET state = 1 WHERE flight = :flight AND seat = :seat AND state = 0";
-				tr.statement[i].flight = row.row.flight;
-				tr.statement[i].seat = row.row.seat;
+				tr.statement[i].flight = row.flight;
+				tr.statement[i].seat = row.seat;
 				i++;
 				tr.statement[i] = "UPDATE trans SET committed = 1 "+ // committed but not finalized
 					"WHERE tid = :tid AND flight = :flight AND seat = :seat";
-				tr.statement[i].flight = row.row.flight;
-				tr.statement[i].seat = row.row.seat;
-				tr.statement[i].tid = transName
+				tr.statement[i].flight = row.flight;
+				tr.statement[i].seat = row.seat;
+				tr.statement[i].tid = tid
 			};
 			
 			scope(canCommitTr)
@@ -573,12 +596,11 @@ main
 	[doCommit(tid)(answer) //Partecipant
 	{
 		// esegui transazione di commit per tid sul db
-		transName = tid.issuer+tid.id;
 		answer = true;
 		
 		// Get list of changes to commit
 		qr = "SELECT flight, seat FROM trans WHERE tid= :tid";
-		qr.tid = transName;
+		qr.tid = tid;
 		query@Database(qr)(qres);
 		
 		/*valueToPrettyString@StringUtils(qres)(str);
@@ -586,13 +608,13 @@ main
 		
 		// Commit the changes
 		i = 0;
-		for(row in qres)
+		for(row in qres.row)
 		{
 			tr.statement[i] = "UPDATE trans SET committed = 2 "+ // finalized commit
 				"WHERE tid = :tid AND flight = :flight AND seat = :seat";
-			tr.statement[i].flight = row.row.flight;
-			tr.statement[i].seat = row.row.seat;
-			tr.statement[i].tid = transName;
+			tr.statement[i].flight = row.flight;
+			tr.statement[i].seat = row.seat;
+			tr.statement[i].tid = tid;
 			i++
 		};
 		
@@ -606,7 +628,7 @@ main
 		undef(qr);
 		undef(tr);
 
-		println@Console("----> Commit sulla transazione "+tid.issuer+tid.id+"! <----")()
+		println@Console("----> Commit sulla transazione "+tid+"! <----")()
 
 	}]
 
@@ -614,7 +636,7 @@ main
 
 	[abort(tid)()] //Partecipant
 	{
-		transName = tid.issuer+tid.id;
+		transName = tid;
 		abort
 	}
 }
