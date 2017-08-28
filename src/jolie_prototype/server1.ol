@@ -42,8 +42,8 @@ interface Spawn {
   RequestResponse:
     spawnCanCommit( tidcount )( bool ),
     spawnDoCommit( tidcount )( void ),
-    spawnAbort( tidcount )( void )
-    //spawnReqLock( tidcount )( void )
+    spawnAbort( tidcount )( void ),
+    spawnReqLock( tidcount )( void )
 }
 
 outputPort Self {
@@ -241,9 +241,15 @@ define abortAll
 		tr.statement[i].partec = participants[i]
 	};
 
-	executeTransaction@Database(tr)(ret);
+	scope (doCommitTrans)
+	{
+		install(SQLException => println@Console("Impossibile sql abortall coord ")(),
+                        IOException => println@Console("DB non raggiungibile quindi non posso decidere per "+transName)()
+		);
+		executeTransaction@Database(tr)(ret)
+	};
 	undef(tr);
-	
+
 	// Ask all participants to abort the transaction
 	println@Console("Begin concurrent abort "+transName)();
 	req.tid = transName;
@@ -268,7 +274,6 @@ define finalizeCommit
         // Register commit in progress  
 	for(i=0, i<#participants, i++)
 	{
-		// Register that the transaction has aborted
 		tr.statement[i] ="UPDATE coordtrans SET state = 2 "+ // COMMITTED
 		"WHERE tid = :tid AND partec = :partec";
 		tr.statement[i].tid = transName;
@@ -277,11 +282,13 @@ define finalizeCommit
 	
 	scope (doCommitTrans)
 	{
-		install(SQLException => println@Console("Errore nel doCommit")());
+		install(SQLException => println@Console("Impossibile sql fincomm coord ")(),
+                        IOException => println@Console("DB non raggiungibile quindi non posso decidere per "+transName)()
+		);
 		executeTransaction@Database(tr)(ret)
 	};
 	undef(tr);
-
+	
 	// Ask all participants to commit the transaction
 	println@Console("Begin concurrent commit "+transName)();
 	req.tid = transName;
@@ -291,10 +298,15 @@ define finalizeCommit
         queryRequest ="SELECT count(*) AS count FROM coordtrans WHERE tid= :tid " ;
 		queryRequest.tid = transName;
 		query@Database( queryRequest )( queryResult );
-		
         serverfail=queryResult.row.count;
         
 	println@Console("----> Transaction "+transName+" was successful! Errors: "+serverfail+"<----")()
+	
+// 	if (serverfail!=0)
+// 	{
+//             sleep(60000);
+//             recoveryCoord
+// 	}
 }
 
 define showDBS
@@ -418,10 +430,27 @@ define coordinatorRecovery
 // TODO
 /*define transactionRecovery
 {
-
-// se non ho ancora risposto si a cancommit dovrei poter abortire liberando subito le risorse bloccate commit 0
-// ma se ho risposto si il coordinatore deve avvisarmi anche se è crashato mentre il si era sul canale 
-// e quindi non ha salvato l'esito della transazione
+    //se memorizzo il nome del coordinatore posso chiamare haveDecided@coord(tid); per ogni transazione con committed 1 e il coordinatore 
+    //può registrare i parteciapanti anche sono dopo la fase di cancommit altrimenti il coordinatore deve registrare i partecipanti prima del cancommit e 
+    //deve avvisare tutti e attendo il suo recovery 
+    
+    //eseguo solo al primo avvio o in caso di recuperata connessione al db
+    
+    //queryRequest =  "SELECT tid,coord FROM trans WHERE committed= 1 " ;
+    //query@Database( queryRequest )( queryResult );
+    //foreach(){
+    //haveDecided@coord(tid)
+    //}
+    
+    //cancello i lock se non mi ero preparato a rispondere si a cancommit dopo 1 secondo per attendere un possibile cancommit che sta arrivando
+    sleep(1000);
+    tr.statement[0] ="DELETE FROM trans WHERE committed = 0 ";
+    install (
+            IOException => println@Console( "Database non disponibile quindi non posso eseguire il recovery")(),
+            SQLException => println@Console( "Impossibile recover partec")()
+    );
+    executeTransaction@Database( tr )( ret )
+    
 
 }*/
 
@@ -441,66 +470,33 @@ main
 		getRandomUUID@StringUtils()(receipt)
 	}]
 	{
-		transName = serverName+(++id);
-
+		transName = serverName+(++id);  // leggere il numero di transazione dal db
 		transInfo.tid = transName;
 		transInfo.coordLocation = myLocation;
 		
-		global.openTrans.(transName) << tid;
+		global.openTrans.(transName) << transInfo;
+		global.openTrans.(transName).seatRequest << seatRequest;
+		
+                participants -> global.openTrans.(transName).participant;
+                
 		println@Console("\nAperta transazione "+transName)();
-		println@Console("Posti richiesti: "+#seatRequest.seat+"\n")();
-
-		participants -> global.openTrans.(transName).participant;
 		
 		// Request lock-ins
-		// TODO parallelizzare
-		// cecherei di raggruppare a questo livello i lock multipli ad uno stesso server
-		for(i=0, i<#seatRequest.seat, i++)
-		{			
-			// send lock-in request to participant
-			OtherServer.location = seatRequest.seat[i].server;
-			lockRequest.seat[0].number = seatRequest.seat[i].number;
-			lockRequest.seat[0].flightID = seatRequest.seat[i].flightID;
-			lockRequest.transInfo << transInfo;
-			println@Console("Richiedo il posto "+lockRequest.seat[0].number+" del volo "+lockRequest.seat[0].flightID
-				+" al server "+OtherServer.location)();
- 			requestLockIn@OtherServer(lockRequest);
-			
-			println@Console("Ho contattato "+OtherServer.location)();
-			
-			// Register participants locally
-			participants[#participants] = seatRequest.seat[i].server	
-		};
-		
-		// Register participants on the DB for recovery
-		scope (join) 
-		{
-			install (SQLException => println@Console("Partecipante duplicato")());
-			// Save all participants in the database through a transaction
-			for(i=0, i<#participants, i++)
-			{ 
-				tr.statement[i] ="INSERT INTO coordtrans(tid, partec, state) VALUES (:tid, :partec, :state)";
-				tr.statement[i].tid = transName;
-				tr.statement[i].partec = participants[i];
-				tr.statement[i].state=0  //REQUESTED
-			};
-			// salvo tutti i partecipanti da avvisare
-			executeTransaction@Database( tr )( ret );
-			undef(tr)
-		};	
-		
+                req.tid = transName;
+                req.count=#seatRequest.lserv-1;
+                spawnReqLock@Self(req)();
+                
 		// Give the participants time to process
 		sleep@Time(500)();
-
-		// Done requesting locks, start 2 phase commit
-		allCanCommit=true;
-		println@Console("Partecipanti: "+#participants)();
 		
+		// Done requesting locks, start 2 phase commit
+		println@Console("Partecipanti: "+#participants)();
                 println@Console("Begin concurrent cancommit "+transName)();
+                
                 req.tid = transName;
                 req.count=#participants-1;
-                spawnCanCommit@Self(req)(allCanCommit);	
-		
+                spawnCanCommit@Self(req)(allCanCommit);
+                
 		// if all can commit, proceed; else, abort.
 		if(allCanCommit==true)
 		{
@@ -521,11 +517,14 @@ main
 		transName = lockRequest.transInfo.tid;
                 
                 scope(lock){
-
- 		valueToPrettyString@StringUtils(lockRequest)(str);
-                 println@Console(str+ #lockRequest.seat)();
+ 		//valueToPrettyString@StringUtils(lockRequest)(str);
+                //println@Console(str+ #lockRequest.seat)();
                 
-                install (SQLException => println@Console(" Esiste già un lock su seat,flight quindi fallisco")() );
+                install (SQLException => println@Console(" Esiste già un lock su seat,flight quindi fallisco")(),
+                        IOException => println@Console( "Database non disponibile quindi non eseguo neinte e al cancommit risponderò no")()
+                );
+                
+                //verificare la semantica in caso di errori negli update della stessa transazione
                 for(i=0, i<#lockRequest.seat, i++)
 		{
                     tr.statement[i] = "INSERT INTO trans(tid, seat,flight, newst, newcust,committed) SELECT :tid, :seat, :flight, :newst, :newcust , 0 "
@@ -557,6 +556,12 @@ main
                 transName=tid;
 		// If the transaction ID is present in the database, then the seats are reserved correctly
                 
+                install (
+                    IOException => {println@Console( "Database non disponibile quindi non sapendo rispondo no")();answer=false},
+                    //throw al coordinatore
+                    SQLException => println@Console( "Impossibile sql cancommit partec")()
+                );
+                
                 // mi impegno a non cancellare in caso di fault
                 tr.statement[0] ="UPDATE trans SET committed = 1 WHERE tid= :tid ";
                 executeTransaction@Database( tr )( ret );
@@ -575,7 +580,7 @@ main
 	{
 		// esegui transazione di commit per tid sul db
                 transName = tid;
-		//da questo punto mi impegno a non liberare il lock in nessun caso fino a doCommit o abort
+
                 tr.statement[0] ="UPDATE seat SET state = (SELECT trans.newst FROM trans "+
                         " WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid), "+
                         " customer = (SELECT trans.newcust FROM trans  "+
@@ -587,6 +592,12 @@ main
                 tr.statement[1] =    "DELETE FROM trans WHERE tid= :tid";
                 tr.statement[1].tid = transName;
                 
+                install (
+                    IOException => println@Console( "Database non disponibile quindi non posso finalizzare il commit locale e devo propagare 
+                                                        l'eccezione al coordinatore in modo che mi ricontatti quando sarà possibile")(),
+                    //throw al coordinatore
+                    SQLException => println@Console( "Impossibile sql commit partec")()
+                );
                 executeTransaction@Database( tr )( ret );
                 
                 answer = true; //rimuovere RR
@@ -611,25 +622,31 @@ main
 		tr.statement[1] ="DELETE FROM trans WHERE tid= :tid";
 		tr.statement[1].tid = transName;
 		
+                install (
+                    IOException => println@Console( "Database non disponibile quindi non posso rimuovere e devo propagare l'eccezione al coordinatore in modo che mi ricontatti quando sarà possibile")(),
+                    //throw(fault) al coordinatore
+                    SQLException => println@Console( "Impossibile sql abort partec")()
+                );
 		executeTransaction@Database( tr )( ret );
 		
 		println@Console("Abortita la transazione "+tid+"!")()
 	}
 	
-        [spawnCanCommit(tc)(resp)  //Coordinator
+        [spawnCanCommit(tc)(resp)  //Coordinator  // IMPROVE gestire + velocemente l'abort
 	{
             if ( tc.count >= 0 )
-            {  
-                transName = tc.tid;
-                participants -> global.openTrans.(transName).participant;
-                {
-                    {OtherServer.location = participants[tc.count];
+            {
+                {{
+                    transName = tc.tid;
+                    participants -> global.openTrans.(transName).participant;
+                    OtherServer.location = participants[tc.count];
                     println@Console("Chiedo canCommit a "+OtherServer.location  )();
+                    install (IOException => {println@Console( OtherServer.location+" non disponibile per canCommit" )(); resp1=false});
                     canCommit@OtherServer(tc.tid)(resp1);
-                    println@Console(OtherServer.location+" risponde "+resp1)()}
-                                                        |   {  d.tid <<tc.tid;
-                                                            d.count =tc.count-1;
-                                                            spawnCanCommit@Self(d)(respm)}};
+                    println@Console(OtherServer.location+" risponde "+resp1)()
+                }                                       |   {   d.tid <<tc.tid;
+                                                                d.count =tc.count-1;
+                                                                spawnCanCommit@Self(d)(respm)}};
                 resp=respm && resp1
             } else  {
                 resp= true
@@ -638,57 +655,115 @@ main
         
         [spawnDoCommit(tc)()  //Coordinator
 	{
-            
             if ( tc.count >= 0 )
-            {  
-                transName = tc.tid;
-                participants -> global.openTrans.(transName).participant;
+            {
                 {
-                    {	OtherServer.location = participants[tc.count];	
-                        println@Console("Mando doCommit a "+OtherServer.location)();
-                        scope ( docom ){
-			install (
-				IOException => println@Console( "Server "+participant+" non disponibile 4")();
-					sleep@Time(500)() //continua
-			);
-			
-			doCommit@OtherServer(tc.tid)(answ);
-			
+                    transName = tc.tid;
+                    participants -> global.openTrans.(transName).participant;
+                    OtherServer.location = participants[tc.count];
+                    println@Console("Mando doCommit a "+OtherServer.location)();
+                    scope ( docom ){
+                        install (
+                            IOException => println@Console( "Server "+participant[tc.count]+" non disponibile quindi non rimuovo dal db e riprovo più tardi")()
+                        );
+                        doCommit@OtherServer(tc.tid)(answ);
+
 			// Register that participant has committed ??
+			// Remove participant from transaction
+
+			updateRequest ="DELETE FROM coordtrans WHERE tid= :tid AND partec =:partec ";
+			updateRequest.tid = transName;
+			updateRequest.partec = participants[tc.count];
+			scope ( saveresp ){
+				install (
+                                IOException => println@Console( "Database non disponibile quindi non posso rimuovere dal db e dovrò riprovare più tardi")(),
+                                SQLException => println@Console( "Impossibile sql docom coord")()
+                            );
+                            update@Database( updateRequest )( ret )
+                        }
+                    }
+                }                                       |   {   d.tid <<tc.tid;
+                                                                d.count =tc.count-1;
+                                                                spawnDoCommit@Self(d)(resp)}
+            }
+        }]
+        
+        [spawnAbort(tc)()  //Coordinator
+	{
+            if ( tc.count >= 0 )
+            {
+                {
+                    transName = tc.tid;
+                    participants -> global.openTrans.(transName).participant;
+                    OtherServer.location = participants[tc.count];
+                    println@Console("Mando abort a "+OtherServer.location)();
+                    scope ( abort ){
+                        install (
+                            IOException => println@Console( "Server "+participant[tc.count]+" non disponibile quindi non rimuovo dal db e riprovo più tardi")()
+                        );
+                        abort@OtherServer(tc.tid)();
+		
                         // Remove participant from transaction
                         updateRequest ="DELETE FROM coordtrans WHERE tid= :tid AND partec =:partec ";
                         updateRequest.tid = transName;
                         updateRequest.partec = participants[tc.count];
-                        update@Database( updateRequest )( ret )}}
-                                                        |   {  d.tid << tc.tid;
-                                                            d.count =tc.count-1;
-                                                            spawnDoCommit@Self(d)(resp)}}
+                        scope ( saveresp ){
+                            install (
+                                IOException => println@Console( "Database non disponibile quindi non posso rimuovere dal db e dovrò riprovare più tardi")(),
+                                SQLException => println@Console( "Impossibile sql abort coord")()
+                            );
+                            update@Database( updateRequest )( ret )
+                        }
+                    }
+                }                                       |   {   d.tid <<tc.tid;
+                                                                d.count =tc.count-1;
+                                                                spawnAbort@Self(d)(resp)}
             }
-        }]      
-        
-        [spawnAbort(tc)()  //Coordinator
-	{
-            
-            if ( tc.count >= 0 )
-            {  
-                transName = tc.tid;
-                participants -> global.openTrans.(transName).participant;
-                {
-                    {OtherServer.location = participants[tc.count];
-                    println@Console("Mando abort a "+OtherServer.location)();
-                    //gestire errore connessione
-                    abort@OtherServer(tc.tid)();
-		
-                    // Remove participant from transaction
-                    updateRequest ="DELETE FROM coordtrans WHERE tid= :tid AND partec =:partec ";
-                    updateRequest.tid = transName;
-                    updateRequest.partec = participants[tc.count];
-                    update@Database( updateRequest )( ret )}
-                                                        |   {  d.tid <<tc.tid;
-                                                            d.count =tc.count-1;
-                                                            spawnAbort@Self(d)(resp)}}
-
-            } 
         }]
-	
+	        
+        [spawnReqLock(tc)()  //Coordinator
+	{
+            if ( tc.count >= 0 )
+            {
+                {
+                    transName = tc.tid;
+                    participants -> global.openTrans.(transName).participant;
+                    // send lock-in request to participant
+                    transInfo.tid = transName;
+                    transInfo.coordLocation = myLocation;
+                    OtherServer.location = global.openTrans.(transName).seatRequest.lserv[tc.count].server;
+                    
+                    lockRequest.seat << global.openTrans.(transName).seatRequest.lserv[tc.count].seat;
+                    lockRequest.transInfo << transInfo;
+                    
+                    // Register participants
+                    participants[#participants] = global.openTrans.(transName).seatRequest.lserv[tc.count].server;
+                        
+                    scope (join) 
+                    {
+			install (SQLException => println@Console("Partecipante duplicato quindi input non valido e abortisco la transazione")(), //aggiungere
+                                IOException => println@Console( "Database non disponibile quindi abortisco la transazione")() //aggiungere
+                        );
+			// Save participant in the database through a transaction
+
+                        tr.statement[0] ="INSERT INTO coordtrans(tid, partec, state) VALUES (:tid, :partec, :state)";
+                        tr.statement[0].tid = transName;
+                        tr.statement[0].partec = OtherServer.location;
+                        tr.statement[0].state=0;  //REQUESTED
+			
+			executeTransaction@Database( tr )( ret );
+			undef(tr);
+			scope(req){
+                            install (
+                                IOException => println@Console( "Server "+participant[tc.count]+" non disponibile quindi abortisco al transazione")() //aggiungere
+                            );
+                            requestLockIn@OtherServer(lockRequest);
+                            println@Console("Ho contattato "+OtherServer.location)()
+                        }
+                    }
+                }                                       |   {   d.tid <<tc.tid;
+                                                                d.count =tc.count-1;
+                                                                spawnReqLock@Self(d)(resp)}
+            }
+        }]
 }

@@ -19,12 +19,14 @@ define retry
                         retry
         );
 	if (global.tent>0){
-            request.seat[0].number=69;
-            request.seat[0].flightID="AZ0123";
-            request.seat[0].server=FlightBookingService.location;
-            request.seat[1].number=44;
-            request.seat[1].flightID="AZ4556";
-            request.seat[1].server="socket://localhost:8000";
+            request.lserv[0].server=FlightBookingService.location;
+            request.lserv[0].seat[0].flightID="AZ0123";
+            request.lserv[0].seat[0].number=69;
+            request.lserv[0].seat[1].flightID="AZ0123";
+            request.lserv[0].seat[1].number=70;
+            request.lserv[1].server="socket://localhost:8000";
+            request.lserv[1].seat[0].flightID="AZ4556";
+            request.lserv[1].seat[0].number=44;
             println@Console(request)();
             book@FlightBookingService(request)(tid);
             println@Console("Ricevuto TID "+tid)()

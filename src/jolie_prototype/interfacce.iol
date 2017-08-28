@@ -13,10 +13,12 @@ type transInfo: void{
 }
 
 type seatRequest: void{
-	.seat[1,*]: void{
-		.number: int
-		.flightID: string
+	.lserv[1,*]: void{	
 		.server: string
+		.seat[1,*]: void{
+                    .number: int
+                    .flightID: string
+                    }
 	}
 }
 
