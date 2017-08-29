@@ -65,160 +65,171 @@ init
 	println@Console("Server "+serverName+" initialized.")();
 	global.id = 0;
 	
-	with ( connectionInfo ) {
-            .username = "sa";
-            .password = "";
-            .host = "";
-           .database = "file:"+dbname;
-           .driver = "sqlite"
-        };
-        connect@Database( connectionInfo )( void );
-		
-		//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-		//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        //!! TEST resetto il DB										!!!
-        //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
-		//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        scope ( resets ) {
-        install ( SQLException => println@Console("seat già vuota")() ); 
+	with ( connectionInfo ) 
+	{
+		.username = "sa";
+		.password = "";
+		.host = "";
+		.database = "file:"+dbname;
+		.driver = "sqlite"
+	};
+	
+	connect@Database( connectionInfo )( void );
+	
+	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	//!!			TEST resetto il DB							  !!
+	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
+	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	scope ( resets ) 
+	{
+		install ( SQLException => println@Console("seat già vuota")() ); 
 			updateRequest ="DROP TABLE seat";
 			update@Database( updateRequest )( ret )
-        };   
-		scope ( resett ) {
-        install ( SQLException => println@Console("trans già vuota")() ); 
+	};   
+	scope ( resett ) 
+	{
+		install ( SQLException => println@Console("trans già vuota")() ); 
 			updateRequest ="DROP TABLE trans";
 			update@Database( updateRequest )( ret )
-        };  
-		scope ( resetc ) {
-        install ( SQLException => println@Console("coordTrans già vuota")() ); 
+	};  
+	scope ( resetc ) 
+	{
+		install ( SQLException => println@Console("coordTrans già vuota")() ); 
 			updateRequest ="DROP TABLE coordTrans";
 			update@Database( updateRequest )( ret )
-        };  
-        
-
-        scope ( createTables ) {
-            install ( SQLException => println@Console("Seat table already there")() );
-            updateRequest =
-                " CREATE TABLE \"seat\" ( "+
-                    " `flight`	TEXT NOT NULL, "+
-                    " `seat`	INTEGER NOT NULL, "+
-                    " `state`	INTEGER NOT NULL DEFAULT 0, "+
-                    " `customer`TEXT, "+
-                    " PRIMARY KEY(flight,seat))";
-            update@Database( updateRequest )( ret )
-        };
-        scope ( createTablet ) {
-            install ( SQLException => println@Console("Transact table already there")() );
-            updateRequest =
-                " CREATE TABLE \"trans\" ( "+
-                " `tid`	TEXT NOT NULL, "+
-                " `seat`	INTEGER NOT NULL, "+
-                " `flight`	TEXT NOT NULL, "+
-                " `newst`	INTEGER, "+
-                " `newcust`	TEXT, "+
-                " `committed` INTEGER NOT NULL DEFAULT 0, "+ // 0 = TENTATIVE, 1 = COMMITTED
-                " PRIMARY KEY(seat,flight))";
-            update@Database( updateRequest )( ret )
-        };
-        scope ( createTablec ) {
-            install ( SQLException => println@Console("Coord table already there")() );
-            updateRequest =
-                " CREATE TABLE \"coordtrans\" ( "+
-                    " `tid`	TEXT, "+
-                    " `partec`	TEXT, "+
-                    " `state`	INTEGER NOT NULL DEFAULT 0, " + // 0=REQUESTED, 1=CAN COMMIT, 2=COMMITTED, 3=ABORT
-                    " PRIMARY KEY(tid,partec))";
-            update@Database( updateRequest )( ret )
-        };
-
-        //per ora creo i voli se non presenti
-        
-        scope ( v1 ) {
-        install ( SQLException => println@Console("volo presente")() );
-        updateRequest =
-            "INSERT INTO seat(flight, seat, state) " +
-            "VALUES (:flight, :seat, :state)";
-        updateRequest.flight = "AZ0123";
-        updateRequest.seat = 69;
-        updateRequest.state = 0;
-        update@Database( updateRequest )( ret )
-        };
-
-        scope ( v2 ) {
-        install ( SQLException => println@Console("volo presente")() );
-        updateRequest =
-            "INSERT INTO seat(flight, seat, state) " +
-            "VALUES (:flight, :seat, :state)";
-        updateRequest.flight = "AZ0123";
-        updateRequest.seat = 70;
-        updateRequest.state = 0;
-        update@Database( updateRequest )( ret )
-        };
-        
-        scope ( v3 ) {
-        install ( SQLException => println@Console("volo presente")() );        
-        updateRequest =
-            "INSERT INTO seat(flight, seat, state) " +
-            "VALUES (:flight, :seat, :state)";
-        updateRequest.flight = "AZ4556";
-        updateRequest.seat = 42;
-        updateRequest.state = 0;
-        update@Database( updateRequest )( ret )
-        };
-  
-        scope ( v4 ) {
-        install ( SQLException => println@Console("volo presente")() ); 
-        updateRequest =
-            "INSERT INTO seat(flight, seat, state) " +
-            "VALUES (:flight, :seat, :state)";
-        updateRequest.flight = "AZ4556";
-        updateRequest.seat = 44;
-        updateRequest.state = 0;
-        update@Database( updateRequest )( ret )
-        };
-         
-        //se ero coordinatore cercare nel database se transazioni che non hanno ricevuto una risposta al commit
-        //CODE
-        
-		scope ( recoveryTest ) {
-			install ( SQLException => println@Console("vfadasda")() ); 
-			updateRequest =
-				"INSERT INTO coordTrans(tid, partec, state) " +
-				"VALUES (:tid, :partec, :state)";
-			updateRequest.tid = "Lefthansa4B0R7";
-			updateRequest.partec = "socket://localhost:8001";
-			updateRequest.state = 0;
-			update@Database( updateRequest )( ret );
-			
-			/*updateRequest =
-				"INSERT INTO trans(tid, seat, flight, newst, committed) " +
-				"VALUES (:tid, :seat, :flight, 1, 0)";
-			updateRequest.tid = "Lefthansa4B0R7";
-			updateRequest.seat = 666;
-			updateRequest.flight = "SA0666";
-			update@Database( updateRequest )( ret );
-			
-			updateRequest =
-				"INSERT INTO trans(tid, seat, flight, newst, committed) " +
-				"VALUES (:tid, :seat, :flight, 1, 1)";
-			updateRequest.tid = "Lefthansa4B0R7";
-			updateRequest.seat = 999;
-			updateRequest.flight = "SA0666";
-			update@Database( updateRequest )( ret );*/
-			
-			updateRequest =
-				"INSERT INTO coordTrans(tid, partec, state) " +
-				"VALUES (:tid, :partec, :state)";
-			updateRequest.tid = "Lefthansa4B0R7";
-			updateRequest.partec = "socket://localhost:8000";
-			updateRequest.state = 0;
-			update@Database( updateRequest )( ret )
-        };
-
-		
-		coordinatorRecovery
-
+	};  
+       
+    
+	scope ( createTables ) 
+	{
+		install ( SQLException => println@Console("Seat table already there")() );
+		updateRequest =
+			" CREATE TABLE \"seat\" ( "+
+				" `flight`	TEXT NOT NULL, "+
+				" `seat`	INTEGER NOT NULL, "+
+				" `state`	INTEGER NOT NULL DEFAULT 0, "+
+				" `customer`TEXT, "+
+				" PRIMARY KEY(flight,seat))";
+		update@Database( updateRequest )( ret )
+	};
+	scope ( createTablet ) 
+	{
+		install ( SQLException => println@Console("Transact table already there")() );
+		updateRequest =
+			" CREATE TABLE \"trans\" ( "+
+			" `tid`	TEXT NOT NULL, "+
+			" `seat`	INTEGER NOT NULL, "+
+			" `flight`	TEXT NOT NULL, "+
+			" `newst`	INTEGER, "+
+			" `newcust`	TEXT, "+
+			" `committed` INTEGER NOT NULL DEFAULT 0, "+ // 0 = TENTATIVE, 1 = COMMITTED
+			" PRIMARY KEY(seat,flight))";
+		update@Database( updateRequest )( ret )
+	};
+	scope ( createTablec ) 
+	{
+		install ( SQLException => println@Console("Coord table already there")() );
+		updateRequest =
+			" CREATE TABLE \"coordtrans\" ( "+
+				" `tid`	TEXT, "+
+				" `partec`	TEXT, "+
+				" `state`	INTEGER NOT NULL DEFAULT 0, " + // 0=REQUESTED, 1=CAN COMMIT, 2=COMMITTED, 3=ABORT
+				" PRIMARY KEY(tid,partec))";
+		update@Database( updateRequest )( ret )
+	};
 	
+	//per ora creo i voli se non presenti
+	
+	scope ( v1 ) 
+	{
+		install ( SQLException => println@Console("volo presente")() );
+		updateRequest =
+			"INSERT INTO seat(flight, seat, state) " +
+			"VALUES (:flight, :seat, :state)";
+		updateRequest.flight = "AZ0123";
+		updateRequest.seat = 69;
+		updateRequest.state = 0;
+		update@Database( updateRequest )( ret )
+	};
+	
+	scope ( v2 ) 
+	{
+		install ( SQLException => println@Console("volo presente")() );
+		updateRequest =
+			"INSERT INTO seat(flight, seat, state) " +
+			"VALUES (:flight, :seat, :state)";
+		updateRequest.flight = "AZ0123";
+		updateRequest.seat = 70;
+		updateRequest.state = 0;
+		update@Database( updateRequest )( ret )
+	};
+	
+	scope ( v3 ) 
+	{
+		install ( SQLException => println@Console("volo presente")() );        
+		updateRequest =
+			"INSERT INTO seat(flight, seat, state) " +
+			"VALUES (:flight, :seat, :state)";
+		updateRequest.flight = "AZ4556";
+		updateRequest.seat = 42;
+		updateRequest.state = 0;
+		update@Database( updateRequest )( ret )
+	};
+	
+	scope ( v4 ) 
+	{
+		install ( SQLException => println@Console("volo presente")() ); 
+		updateRequest =
+			"INSERT INTO seat(flight, seat, state) " +
+			"VALUES (:flight, :seat, :state)";
+		updateRequest.flight = "AZ4556";
+		updateRequest.seat = 44;
+		updateRequest.state = 0;
+		update@Database( updateRequest )( ret )
+	};
+		
+	//se ero coordinatore cercare nel database se transazioni che non hanno ricevuto una risposta al commit
+	//CODE
+	
+	scope ( recoveryTest ) 
+	{
+		install ( SQLException => println@Console("vfadasda")() ); 
+		updateRequest =
+			"INSERT INTO coordTrans(tid, partec, state) " +
+			"VALUES (:tid, :partec, :state)";
+		updateRequest.tid = "Lefthansa4B0R7";
+		updateRequest.partec = "socket://localhost:8001";
+		updateRequest.state = 0;
+		update@Database( updateRequest )( ret );
+		
+		/*updateRequest =
+			"INSERT INTO trans(tid, seat, flight, newst, committed) " +
+			"VALUES (:tid, :seat, :flight, 1, 0)";
+		updateRequest.tid = "Lefthansa4B0R7";
+		updateRequest.seat = 666;
+		updateRequest.flight = "SA0666";
+		update@Database( updateRequest )( ret );
+		
+		updateRequest =
+			"INSERT INTO trans(tid, seat, flight, newst, committed) " +
+			"VALUES (:tid, :seat, :flight, 1, 1)";
+		updateRequest.tid = "Lefthansa4B0R7";
+		updateRequest.seat = 999;
+		updateRequest.flight = "SA0666";
+		update@Database( updateRequest )( ret );*/
+		
+		updateRequest =
+			"INSERT INTO coordTrans(tid, partec, state) " +
+			"VALUES (:tid, :partec, :state)";
+		updateRequest.tid = "Lefthansa4B0R7";
+		updateRequest.partec = "socket://localhost:8000";
+		updateRequest.state = 0;
+		update@Database( updateRequest )( ret )
+	};
+	
+	
+	coordinatorRecovery
 }
 
 /*
