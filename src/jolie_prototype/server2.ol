@@ -435,7 +435,7 @@ define coordinatorRecovery
 		}
 	};
 	undef(OtherServer.location);
-	println@Console("--- Coordinator recovery done.---")()//;
+	println@Console("\t\t--- Coordinator recovery done.---")()//;
 	//showDBS
 	// sleep(120000);
         // coordinatorRecovery@Self()() //necessario anche se gli altri server non rispondono subito
