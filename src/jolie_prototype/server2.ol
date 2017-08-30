@@ -192,7 +192,7 @@ init
 	//se ero coordinatore cercare nel database se transazioni che non hanno ricevuto una risposta al commit
 	//CODE
 	
-	scope ( recoveryTest ) 
+	/*scope ( recoveryTest ) 
 	{
 		install ( SQLException => println@Console("vfadasda")() ); 
 		updateRequest =
@@ -203,7 +203,7 @@ init
 		updateRequest.state = 0;
 		update@Database( updateRequest )( ret );
 		
-		/*updateRequest =
+		updateRequest =
 			"INSERT INTO trans(tid, seat, flight, newst, committed) " +
 			"VALUES (:tid, :seat, :flight, 1, 0)";
 		updateRequest.tid = "Lefthansa4B0R7";
@@ -217,7 +217,7 @@ init
 		updateRequest.tid = "Lefthansa4B0R7";
 		updateRequest.seat = 999;
 		updateRequest.flight = "SA0666";
-		update@Database( updateRequest )( ret );*/
+		update@Database( updateRequest )( ret );
 		
 		updateRequest =
 			"INSERT INTO coordTrans(tid, partec, state) " +
@@ -226,7 +226,7 @@ init
 		updateRequest.partec = "socket://localhost:8000";
 		updateRequest.state = 0;
 		update@Database( updateRequest )( ret )
-	};
+	};*/
 	
 	
 	coordinatorRecovery
