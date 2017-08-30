@@ -252,7 +252,7 @@ define abortAll
 		tr.statement[i].partec = participants[i]
 	};
 
-	scope (doCommitTrans)
+	scope (abortAllTrans)
 	{
 		install(SQLException => println@Console("Impossibile sql abortall coord ")(),
                         IOException => println@Console("DB non raggiungibile quindi non posso decidere per "+transName)()
