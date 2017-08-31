@@ -528,7 +528,61 @@ main
 		undef(global.openTrans.(transName))
 	}
 	
-//==================================================================================================
+	[spawnReqLock(tc)()  //Coordinator
+	{
+		if ( tc.count >= 0 )
+		{
+			{
+				transName = tc.tid;
+				participants -> global.openTrans.(transName).participant;
+				// send lock-in request to participant
+				transInfo.tid = transName;
+				transInfo.coordLocation = myLocation;
+				OtherServer.location = global.openTrans.(transName).seatRequest.lserv[tc.count].server;
+				
+				lockRequest.seat << global.openTrans.(transName).seatRequest.lserv[tc.count].seat;
+				lockRequest.transInfo << transInfo;
+				
+				// Register participants
+				participants[#participants] = global.openTrans.(transName).seatRequest.lserv[tc.count].server;
+					
+				scope (join) 
+				{
+					install 
+					(
+						SQLException => println@Console("Partecipante duplicato quindi input non valido e abortisco la transazione")(), //aggiungere
+						IOException => println@Console( "Database non disponibile 	quindi abortisco la transazione")() //aggiungere
+					);
+					// Save participant in the database through a transaction
+
+					tr.statement[0] ="INSERT INTO coordtrans(tid, partec, state) VALUES (:tid, :partec, :state)";
+					tr.statement[0].tid = transName;
+					tr.statement[0].partec = OtherServer.location;
+					tr.statement[0].state=0;  //REQUESTED
+			
+					executeTransaction@Database( tr )( ret );
+					undef(tr);
+					scope(req)
+					{
+						install 
+						(
+							IOException => println@Console( "Server "+participant[tc.count]+" non disponibile quindi abortisco al transazione")() //aggiungere
+						);
+						requestLockIn@OtherServer(lockRequest);
+						println@Console("Ho contattato "+OtherServer.location)()
+					}
+				}
+			}
+			
+			|   
+			
+			{   
+				d.tid <<tc.tid;
+				d.count =tc.count-1;
+				spawnReqLock@Self(d)(resp)
+			}
+		}
+	}]
 	
 	[requestLockIn(lockRequest)] //Partecipant
 	{
@@ -595,6 +649,35 @@ main
 		query@Database( queryRequest )( queryResult );
 		answer = queryResult.row.count!=0
 	}]
+	
+	[spawnCanCommit(tc)(resp)  //Coordinator  // IMPROVE gestire + velocemente l'abort
+	{
+		if ( tc.count >= 0 )
+		{
+			{
+				{
+                    transName = tc.tid;
+                    participants -> global.openTrans.(transName).participant;
+                    OtherServer.location = participants[tc.count];
+                    println@Console("Chiedo canCommit a "+OtherServer.location  )();
+                    install (IOException => {println@Console( OtherServer.location+" non disponibile per canCommit" )(); resp1=false});
+                    canCommit@OtherServer(tc.tid)(resp1);
+                    println@Console(OtherServer.location+" risponde "+resp1)()
+                }                                       
+				
+				|
+				
+				{   
+					d.tid <<tc.tid;
+					d.count =tc.count-1;
+					spawnCanCommit@Self(d)(respm)
+				}
+			};
+			resp=respm && resp1
+		} else  {
+			resp= true
+		}
+	}]
 
 //==================================================================================================
 	
@@ -627,63 +710,7 @@ main
 		println@Console("----> Commit sulla transazione "+tid+"! <----")()
 	
 	}]
-
-//==================================================================================================
-
-	[abort(tid)()] //Partecipant
-	{
-		transName = tid;
-		//esegui transazione di abort per tid sul db
-		tr.statement[0] ="UPDATE seat SET state = 0, "+
-			" customer = (SELECT trans.newcust FROM trans  "+
-			" WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid) "+
-			" WHERE EXISTS ( SELECT * FROM trans  "+
-			" WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid) ";
-		tr.statement[0].tid = transName;  
-		
-		tr.statement[1] ="DELETE FROM trans WHERE tid= :tid";
-		tr.statement[1].tid = transName;
-		
-		install 
-		(
-			IOException => println@Console( "Database non disponibile quindi non posso rimuovere e devo propagare l'eccezione al coordinatore in modo che mi ricontatti quando sarà possibile")(),
-			//throw(fault) al coordinatore
-			SQLException => println@Console( "Impossibile sql abort partec")()
-		);
-		executeTransaction@Database( tr )( ret );
-		
-		println@Console("Abortita la transazione "+tid+"!")()
-	}
 	
-	[spawnCanCommit(tc)(resp)  //Coordinator  // IMPROVE gestire + velocemente l'abort
-	{
-		if ( tc.count >= 0 )
-		{
-			{
-				{
-                    transName = tc.tid;
-                    participants -> global.openTrans.(transName).participant;
-                    OtherServer.location = participants[tc.count];
-                    println@Console("Chiedo canCommit a "+OtherServer.location  )();
-                    install (IOException => {println@Console( OtherServer.location+" non disponibile per canCommit" )(); resp1=false});
-                    canCommit@OtherServer(tc.tid)(resp1);
-                    println@Console(OtherServer.location+" risponde "+resp1)()
-                }                                       
-				
-				|
-				
-				{   
-					d.tid <<tc.tid;
-					d.count =tc.count-1;
-					spawnCanCommit@Self(d)(respm)
-				}
-			};
-			resp=respm && resp1
-		} else  {
-			resp= true
-		}
-	}]  
-        
 	[spawnDoCommit(tc)()  //Coordinator
 	{
 		if ( tc.count >= 0 )
@@ -727,7 +754,34 @@ main
 			}
 		}
 	}]
-        
+
+//==================================================================================================
+
+	[abort(tid)()] //Partecipant
+	{
+		transName = tid;
+		//esegui transazione di abort per tid sul db
+		tr.statement[0] ="UPDATE seat SET state = 0, "+
+			" customer = (SELECT trans.newcust FROM trans  "+
+			" WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid) "+
+			" WHERE EXISTS ( SELECT * FROM trans  "+
+			" WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid) ";
+		tr.statement[0].tid = transName;  
+		
+		tr.statement[1] ="DELETE FROM trans WHERE tid= :tid";
+		tr.statement[1].tid = transName;
+		
+		install 
+		(
+			IOException => println@Console( "Database non disponibile quindi non posso rimuovere e devo propagare l'eccezione al coordinatore in modo che mi ricontatti quando sarà possibile")(),
+			//throw(fault) al coordinatore
+			SQLException => println@Console( "Impossibile sql abort partec")()
+		);
+		executeTransaction@Database( tr )( ret );
+		
+		println@Console("Abortita la transazione "+tid+"!")()
+	}
+	
 	[spawnAbort(tc)()  //Coordinator
 	{
 		if ( tc.count >= 0 )
@@ -770,59 +824,4 @@ main
 		}
 	}]
 	        
-	[spawnReqLock(tc)()  //Coordinator
-	{
-		if ( tc.count >= 0 )
-		{
-			{
-				transName = tc.tid;
-				participants -> global.openTrans.(transName).participant;
-				// send lock-in request to participant
-				transInfo.tid = transName;
-				transInfo.coordLocation = myLocation;
-				OtherServer.location = global.openTrans.(transName).seatRequest.lserv[tc.count].server;
-				
-				lockRequest.seat << global.openTrans.(transName).seatRequest.lserv[tc.count].seat;
-				lockRequest.transInfo << transInfo;
-				
-				// Register participants
-				participants[#participants] = global.openTrans.(transName).seatRequest.lserv[tc.count].server;
-					
-				scope (join) 
-				{
-					install 
-					(
-						SQLException => println@Console("Partecipante duplicato quindi input non valido e abortisco la transazione")(), //aggiungere
-						IOException => println@Console( "Database non disponibile 	quindi abortisco la transazione")() //aggiungere
-					);
-					// Save participant in the database through a transaction
-
-					tr.statement[0] ="INSERT INTO coordtrans(tid, partec, state) VALUES (:tid, :partec, :state)";
-					tr.statement[0].tid = transName;
-					tr.statement[0].partec = OtherServer.location;
-					tr.statement[0].state=0;  //REQUESTED
-			
-					executeTransaction@Database( tr )( ret );
-					undef(tr);
-					scope(req)
-					{
-						install 
-						(
-							IOException => println@Console( "Server "+participant[tc.count]+" non disponibile quindi abortisco al transazione")() //aggiungere
-						);
-						requestLockIn@OtherServer(lockRequest);
-						println@Console("Ho contattato "+OtherServer.location)()
-					}
-				}
-			}
-			
-			|   
-			
-			{   
-				d.tid <<tc.tid;
-				d.count =tc.count-1;
-				spawnReqLock@Self(d)(resp)
-			}
-		}
-	}]
 }
