@@ -424,7 +424,7 @@ define coordinatorRecovery
 	// Look for leftover transactions
 	// prefix cr_ is to avoid variable clashes with abort procedure
 	println@Console("\t\t---COORDINATOR RECOVERY---")();
-	cr_qr = "SELECT tid, partec FROM coordTrans " +
+	cr_qr = "SELECT tid, partec, cid FROM coordTrans " +
 	" WHERE state = 0 OR state = 1 OR state = 3";
 	query@Database(cr_qr)(cr_qres);
 	
@@ -445,7 +445,9 @@ define coordinatorRecovery
 			{
 				install(default => println@Console("Errore nell'abort, tengo la entry.")();
 					cr_deleteEntry = false);
-				abort@OtherServer(tid)()
+				tReq.tid = tid;
+				tReq.cid = cr_row.cid;
+				abort@OtherServer(tReq)()
 			}
 		};
 		
@@ -563,8 +565,6 @@ main
 		spawnCanCommit@Self(req)(allCanCommit);
                 
 		// if all can commit, proceed; else, abort.
-		showDBS;
-		showInternalState;
 		if(allCanCommit==true)
 		{
 			finalizeCommit
