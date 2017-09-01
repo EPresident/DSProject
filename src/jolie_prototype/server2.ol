@@ -99,7 +99,12 @@ init
 			updateRequest ="DROP TABLE coordTrans";
 			update@Database( updateRequest )( ret )
 	};  
-       
+    scope ( resettr ) 
+	{
+		install ( SQLException => println@Console("transReg già vuota")() ); 
+			updateRequest ="DROP TABLE transreg";
+			update@Database( updateRequest )( ret )
+	};   
     
 	scope ( createTables ) 
 	{
@@ -134,8 +139,20 @@ init
 			" CREATE TABLE \"coordtrans\" ( "+
 				" `tid`	TEXT, "+
 				" `partec`	TEXT, "+
+				" `cid`	TEXT, "+
 				" `state`	INTEGER NOT NULL DEFAULT 0, " + // 0=REQUESTED, 1=CAN COMMIT, 2=COMMITTED, 3=ABORT
 				" PRIMARY KEY(tid,partec))";
+		update@Database( updateRequest )( ret )
+	};
+	scope ( createTransReg ) 
+	{
+		install ( SQLException => println@Console("Transaction registry already there")() );
+		updateRequest =
+			" CREATE TABLE \"transreg\" ( "+
+				" `tid`	TEXT, "+
+				" `coord`	TEXT, "+
+				" `cid`	TEXT, "+
+				" PRIMARY KEY(tid,coord))";
 		update@Database( updateRequest )( ret )
 	};
 	
@@ -342,6 +359,12 @@ define showDBS
 	qr = "SELECT * FROM coordTrans";
 	query@Database(qr)(qres);
 	valueToPrettyString@StringUtils(qres)(str);
+	println@Console(str+"\n")();
+	
+	println@Console("\t\t---TRANSREG---")();
+	qr = "SELECT * FROM transreg";
+	query@Database(qr)(qres);
+	valueToPrettyString@StringUtils(qres)(str);
 	println@Console(str+"\n")()
 }
 
@@ -473,6 +496,29 @@ define coordinatorRecovery
 
 }*/
 
+define checkCID
+{
+	// cid = CoordinatorID		tid = TransactionID 
+	// Checks if the cid passed with a request for tid matches the registered cid for tid
+	// In case of mismatch InvalidCID is thrown
+	// If no cid is assigned to tid MissingCID is thrown
+	// The cid to be checked must be in the receivedCID variable!
+	// The tid to be checked must be in the transName variable!
+	qr = "SELECT cid FROM transreg WHERE tid = :tid";
+	qr.tid = transName;
+	query@Database(qr)(qres);
+	
+	if( #qres.row == 0 )
+	{
+		throw(MissingCID)
+	};
+	if ( receivedCID != qres.row[0].cid )
+	{
+		throw(InvalidCID)
+	}
+}
+
+
 /*
 ==================================================================================================
 ||																								||
@@ -489,7 +535,7 @@ main
 		getRandomUUID@StringUtils()(receipt)
 	}]
 	{
-		transName = serverName+(++id);  // leggere il numero di transazione dal db
+		transName = serverName+(++id);  // TODO leggere il numero di transazione dal db
 		transInfo.tid = transName;
 		transInfo.coordLocation = myLocation;
 		
@@ -517,6 +563,8 @@ main
 		spawnCanCommit@Self(req)(allCanCommit);
                 
 		// if all can commit, proceed; else, abort.
+		showDBS;
+		showInternalState;
 		if(allCanCommit==true)
 		{
 			finalizeCommit
@@ -530,6 +578,7 @@ main
 	
 	[spawnReqLock(tc)()  //Coordinator
 	{
+	
 		if ( tc.count >= 0 )
 		{
 			{
@@ -542,9 +591,13 @@ main
 				
 				lockRequest.seat << global.openTrans.(transName).seatRequest.lserv[tc.count].seat;
 				lockRequest.transInfo << transInfo;
+				// each participant is given a unique ID for this coordinator
+				getRandomUUID@StringUtils()(lockRequest.cid); 
 				
 				// Register participants
-				participants[#participants] = global.openTrans.(transName).seatRequest.lserv[tc.count].server;
+				i = #participants;
+				participants[i] = global.openTrans.(transName).seatRequest.lserv[tc.count].server;
+				participants[i].cid = lockRequest.cid;   
 					
 				scope (join) 
 				{
@@ -555,9 +608,11 @@ main
 					);
 					// Save participant in the database through a transaction
 
-					tr.statement[0] ="INSERT INTO coordtrans(tid, partec, state) VALUES (:tid, :partec, :state)";
+					tr.statement[0] ="INSERT INTO coordtrans(tid, partec, cid, state) " +
+						"VALUES (:tid, :partec, :cid, :state)";
 					tr.statement[0].tid = transName;
 					tr.statement[0].partec = OtherServer.location;
+					tr.statement[0].cid = lockRequest.cid;
 					tr.statement[0].state=0;  //REQUESTED
 			
 					executeTransaction@Database( tr )( ret );
@@ -588,7 +643,7 @@ main
 	{
 		// Write a tentative version of the request
 		transName = lockRequest.transInfo.tid;
-			
+		
 		scope(lock)
 		{
 		//valueToPrettyString@StringUtils(lockRequest)(str);
@@ -621,33 +676,56 @@ main
 			" WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid) ";
 			tr.statement[#lockRequest.seat+1].tid = transName;  
 
+			tr.statement[#lockRequest.seat+2] = "INSERT INTO transreg(tid, coord, cid) VALUES (:tid, :coord, :cid) ";
+			tr.statement[#lockRequest.seat+2].tid = lockRequest.transInfo.tid;
+			tr.statement[#lockRequest.seat+2].coord = lockRequest.transInfo.coordLocation;
+			tr.statement[#lockRequest.seat+2].cid = lockRequest.cid;
+			
 			executeTransaction@Database( tr )( ret )
 		}
 	}
 	
 //==================================================================================================
 	
-	[canCommit(tid)(answer)  //Partecipant
+	[canCommit(tReq)(answer)  //Partecipant
 	{
-		transName=tid;
-		// If the transaction ID is present in the database, then the seats are reserved correctly
-		install 
-		(
-			IOException => {println@Console( "Database non disponibile quindi non sapendo rispondo no")();answer=false},
-			//throw al coordinatore
-			SQLException => println@Console( "Impossibile sql cancommit partec")()
-		);
+		transName=tReq.tid;
 		
-		// mi impegno a non cancellare in caso di fault
-		tr.statement[0] ="UPDATE trans SET committed = 1 WHERE tid= :tid ";
-		executeTransaction@Database( tr )( ret );
-		
-		// cerca sul db se è presente tid nell'elenco
-		queryRequest =
-			"SELECT count(*) AS count FROM trans WHERE tid= :tid " ;
-		queryRequest.tid = transName;
-		query@Database( queryRequest )( queryResult );
-		answer = queryResult.row.count!=0
+		// Check if cid matches
+		scope(cidCheck)
+		{
+			install
+			(
+				InvalidCID => answer = false;
+				println@Console("Received request with invalid cid!")()
+			);
+			install
+			(
+				MissingCID => answer = false;
+				println@Console("Received request for a transaction without cid!")()
+			);
+			receivedCID = tReq.cid;
+			checkCID;
+	
+			// If the transaction ID is present in the database, then the seats are reserved correctly
+			install 
+			(
+				IOException => {println@Console( "Database non disponibile quindi non sapendo rispondo no")();answer=false},
+				//throw al coordinatore
+				SQLException => println@Console( "Impossibile sql cancommit partec")()
+			);
+			
+			// mi impegno a non cancellare in caso di fault
+			tr.statement[0] ="UPDATE trans SET committed = 1 WHERE tid= :tid ";
+			executeTransaction@Database( tr )( ret );
+			
+			// cerca sul db se è presente tid nell'elenco
+			queryRequest =
+				"SELECT count(*) AS count FROM trans WHERE tid= :tid " ;
+			queryRequest.tid = transName;
+			query@Database( queryRequest )( queryResult );
+			answer = queryResult.row.count!=0
+		}
 	}]
 	
 	[spawnCanCommit(tc)(resp)  //Coordinator  // IMPROVE gestire + velocemente l'abort
@@ -660,8 +738,17 @@ main
                     participants -> global.openTrans.(transName).participant;
                     OtherServer.location = participants[tc.count];
                     println@Console("Chiedo canCommit a "+OtherServer.location  )();
-                    install (IOException => {println@Console( OtherServer.location+" non disponibile per canCommit" )(); resp1=false});
-                    canCommit@OtherServer(tc.tid)(resp1);
+                    install 
+					(
+						IOException => 
+						{
+							println@Console( OtherServer.location+" non disponibile per canCommit" )(); 
+							resp1=false
+						}
+					);
+					tReq.tid = tc.tid;
+					tReq.cid = participants[tc.count].cid;
+                    canCommit@OtherServer(tReq)(resp1);
                     println@Console(OtherServer.location+" risponde "+resp1)()
                 }                                       
 				
@@ -681,34 +768,50 @@ main
 
 //==================================================================================================
 	
-	[doCommit(tid)(answer) //Partecipant
+	[doCommit(tReq)(answer) //Partecipant
 	{
 		// esegui transazione di commit per tid sul db
-		transName = tid;
+		transName=tReq.tid;
+		
+		// Check if cid matches
+		scope(cidCheck)
+		{
+			install
+			(
+				InvalidCID => answer = false;
+				println@Console("Received request with invalid cid!")()
+			);
+			install
+			(
+				MissingCID => answer = false;
+				println@Console("Received request for a transaction without cid!")()
+			);
+			receivedCID = tReq.cid;
+			checkCID;
 	
-		tr.statement[0] ="UPDATE seat SET state = (SELECT trans.newst FROM trans "+
-				" WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid), "+
-				" customer = (SELECT trans.newcust FROM trans  "+
-				" WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid) "+
-				" WHERE EXISTS ( SELECT * FROM trans  "+
-				" WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid) ";
-		tr.statement[0].tid = transName;  
-		
-		tr.statement[1] =    "DELETE FROM trans WHERE tid= :tid";
-		tr.statement[1].tid = transName;
-		
-		install 
-		(
-			IOException => println@Console( "Database non disponibile quindi non posso finalizzare il commit locale e devo propagare l'eccezione al coordinatore in modo che mi ricontatti quando sarà possibile")(),
-			//throw al coordinatore
-			SQLException => println@Console( "Impossibile sql commit partec")()
-		);
-		executeTransaction@Database( tr )( ret );
-		
-		answer = true; //rimuovere RR
-		
-		println@Console("----> Commit sulla transazione "+tid+"! <----")()
-	
+			tr.statement[0] ="UPDATE seat SET state = (SELECT trans.newst FROM trans "+
+					" WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid), "+
+					" customer = (SELECT trans.newcust FROM trans  "+
+					" WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid) "+
+					" WHERE EXISTS ( SELECT * FROM trans  "+
+					" WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid) ";
+			tr.statement[0].tid = transName;  
+			
+			tr.statement[1] =    "DELETE FROM trans WHERE tid= :tid";
+			tr.statement[1].tid = transName;
+			
+			install 
+			(
+				IOException => println@Console( "Database non disponibile quindi non posso finalizzare il commit locale e devo propagare l'eccezione al coordinatore in modo che mi ricontatti quando sarà possibile")(),
+				//throw al coordinatore
+				SQLException => println@Console( "Impossibile sql commit partec")()
+			);
+			executeTransaction@Database( tr )( ret );
+			
+			answer = true; //rimuovere RR
+			
+			println@Console("----> Commit sulla transazione "+tid+"! <----")()
+		}
 	}]
 	
 	[spawnDoCommit(tc)()  //Coordinator
@@ -726,7 +829,9 @@ main
 					(
 						IOException => println@Console( "Server "+participant[tc.count]+" non disponibile quindi non rimuovo dal db e riprovo più tardi")()
 					);
-					doCommit@OtherServer(tc.tid)(answ);
+					tReq.tid = tc.tid;
+					tReq.cid = participants[tc.count].cid;
+					doCommit@OtherServer(tReq)(answ);
 
 					// Register that participant has committed ??
 					// Remove participant from transaction		
@@ -757,29 +862,45 @@ main
 
 //==================================================================================================
 
-	[abort(tid)()] //Partecipant
+	[abort(tReq)()] //Partecipant
 	{
-		transName = tid;
-		//esegui transazione di abort per tid sul db
-		tr.statement[0] ="UPDATE seat SET state = 0, "+
-			" customer = (SELECT trans.newcust FROM trans  "+
-			" WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid) "+
-			" WHERE EXISTS ( SELECT * FROM trans  "+
-			" WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid) ";
-		tr.statement[0].tid = transName;  
+		transName=tReq.tid;
 		
-		tr.statement[1] ="DELETE FROM trans WHERE tid= :tid";
-		tr.statement[1].tid = transName;
-		
-		install 
-		(
-			IOException => println@Console( "Database non disponibile quindi non posso rimuovere e devo propagare l'eccezione al coordinatore in modo che mi ricontatti quando sarà possibile")(),
-			//throw(fault) al coordinatore
-			SQLException => println@Console( "Impossibile sql abort partec")()
-		);
-		executeTransaction@Database( tr )( ret );
-		
-		println@Console("Abortita la transazione "+tid+"!")()
+		// Check if cid matches
+		scope(cidCheck)
+		{
+			install
+			(
+				InvalidCID => println@Console("Received request with invalid cid!")()
+			);
+			install
+			(
+				MissingCID => println@Console("Received request for a transaction without cid!")()
+			);
+			receivedCID = tReq.cid;
+			checkCID;
+			
+			//esegui transazione di abort per tid sul db
+			tr.statement[0] ="UPDATE seat SET state = 0, "+
+				" customer = (SELECT trans.newcust FROM trans  "+
+				" WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid) "+
+				" WHERE EXISTS ( SELECT * FROM trans  "+
+				" WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid) ";
+			tr.statement[0].tid = transName;  
+			
+			tr.statement[1] ="DELETE FROM trans WHERE tid= :tid";
+			tr.statement[1].tid = transName;
+			
+			install 
+			(
+				IOException => println@Console( "Database non disponibile quindi non posso rimuovere e devo propagare l'eccezione al coordinatore in modo che mi ricontatti quando sarà possibile")(),
+				//throw(fault) al coordinatore
+				SQLException => println@Console( "Impossibile sql abort partec")()
+			);
+			executeTransaction@Database( tr )( ret );
+			
+			println@Console("Abortita la transazione "+tid+"!")()
+		}
 	}
 	
 	[spawnAbort(tc)()  //Coordinator
@@ -797,7 +918,9 @@ main
 					(
 						IOException => println@Console( "Server "+participant[tc.count]+" non disponibile quindi non rimuovo dal db e riprovo più tardi")()	
 					);
-					abort@OtherServer(tc.tid)();
+					tReq.tid = tc.tid;
+					tReq.cid = participants[tc.count].cid;
+					abort@OtherServer(tReq)();
 					
 					// Remove participant from transaction
 					updateRequest ="DELETE FROM coordtrans WHERE tid= :tid AND partec =:partec ";

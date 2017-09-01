@@ -12,6 +12,11 @@ type transInfo: void{
 	.coordLocation: string
 }
 
+type transRequest: void{
+	.tid: string
+	.cid: string
+}
+
 type seatRequest: void{
 	.lserv[1,*]: void{	
 		.server: string
@@ -28,21 +33,21 @@ type lockRequest: void{
 		.flightID: string
 	}
 	.transInfo: transInfo
+	.cid: string
 }
 
 interface FlightBookingInterface{
 	OneWay: 
 		requestLockIn(lockRequest), 			
 	RequestResponse:
-		canCommit(string)(bool),
-		doCommit(string)(bool),
-		abort(string)(void)
+		canCommit(transRequest)(bool),
+		doCommit(transRequest)(bool),
+		abort(transRequest)(void)
 }
 
 interface Coordinator{
 	//OneWay: 
 	RequestResponse: 
 		getDecision(string)(bool),
-		doCommit(string)(bool),
 		book(seatRequest)(string)
 }
