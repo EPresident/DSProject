@@ -804,6 +804,9 @@ main
 			tr.statement[1] =    "DELETE FROM trans WHERE tid= :tid";
 			tr.statement[1].tid = transName;
 			
+			tr.statement[2] =    "DELETE FROM transreg WHERE tid= :tid";
+			tr.statement[2].tid = transName;
+			
 			install 
 			(
 				IOException => println@Console( "Database non disponibile quindi non posso finalizzare il commit locale e devo propagare l'eccezione al coordinatore in modo che mi ricontatti quando sarà possibile")(),
@@ -894,6 +897,9 @@ main
 			
 			tr.statement[1] ="DELETE FROM trans WHERE tid= :tid";
 			tr.statement[1].tid = transName;
+			
+			tr.statement[2] ="DELETE FROM transreg WHERE tid= :tid";
+			tr.statement[2].tid = transName;
 			
 			install 
 			(
