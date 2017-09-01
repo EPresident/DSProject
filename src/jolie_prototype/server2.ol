@@ -738,18 +738,22 @@ main
                     participants -> global.openTrans.(transName).participant;
                     OtherServer.location = participants[tc.count];
                     println@Console("Chiedo canCommit a "+OtherServer.location  )();
-                    install 
-					(
-						IOException => 
-						{
-							println@Console( OtherServer.location+" non disponibile per canCommit" )(); 
-							resp1=false
-						}
-					);
-					tReq.tid = tc.tid;
-					tReq.cid = participants[tc.count].cid;
-                    canCommit@OtherServer(tReq)(resp1);
-                    println@Console(OtherServer.location+" risponde "+resp1)()
+					
+					scope(sendMsg)
+					{
+						install 
+						(
+							IOException => 
+							{
+								println@Console( OtherServer.location+" non disponibile per canCommit" )(); 
+								resp1=false
+							}
+						);
+						tReq.tid = tc.tid;
+						tReq.cid = participants[tc.count].cid;
+						canCommit@OtherServer(tReq)(resp1);
+						println@Console(OtherServer.location+" risponde "+resp1)()
+					}
                 }                                       
 				
 				|
