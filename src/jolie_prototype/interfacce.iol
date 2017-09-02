@@ -36,6 +36,11 @@ type lockRequest: void{
 	.cid: string
 }
 
+type bookResponse: void{
+	.success: bool
+	.receipt?: string
+}
+
 interface FlightBookingInterface{
 	OneWay: 
 		requestLockIn(lockRequest), 			
@@ -49,5 +54,5 @@ interface Coordinator{
 	//OneWay: 
 	RequestResponse: 
 		getDecision(string)(bool),
-		book(seatRequest)(string)
+		book(seatRequest)(bookResponse)
 }

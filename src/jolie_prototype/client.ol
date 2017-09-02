@@ -28,8 +28,14 @@ define retry
             request.lserv[1].seat[0].flightID="AZ4556";
             request.lserv[1].seat[0].number=44;
             println@Console(request)();
-            book@FlightBookingService(request)(tid);
-            println@Console("Ricevuto TID "+tid)()
+            book@FlightBookingService(request)(response);
+            if(response.success)
+			{
+				println@Console("Successo! Ricevuta: "+response.receipt)()
+			} else
+			{
+				println@Console("Transazione fallita.")()
+			}
         } else {
             println@Console( "Server non disponibile")()
         }

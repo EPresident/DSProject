@@ -5,6 +5,7 @@ include "runtime.iol"
 include "network_service.iol"
 include "time.iol"
 include "database.iol"
+include "message_digest.iol"
 
 constants
 {
@@ -105,6 +106,12 @@ init
 			updateRequest ="DROP TABLE transreg";
 			update@Database( updateRequest )( ret )
 	};   
+	scope ( resetrt ) 
+	{
+		install ( SQLException => println@Console("receipts già vuota")() ); 
+			updateRequest ="DROP TABLE receipts";
+			update@Database( updateRequest )( ret )
+	};   
     
 	scope ( createTables ) 
 	{
@@ -152,6 +159,16 @@ init
 				" `tid`	TEXT, "+
 				" `coord`	TEXT, "+
 				" `cid`	TEXT, "+
+				" PRIMARY KEY(tid))";
+		update@Database( updateRequest )( ret )
+	};
+	scope ( createReceiptsTable ) 
+	{
+		install ( SQLException => println@Console("Receipts registry already there")() );
+		updateRequest =
+			" CREATE TABLE \"receipts\" ( "+
+				" `tid`	TEXT, "+
+				" `hash`	TEXT, "+
 				" PRIMARY KEY(tid))";
 		update@Database( updateRequest )( ret )
 	};
@@ -366,6 +383,12 @@ define showDBS
 	qr = "SELECT * FROM transreg";
 	query@Database(qr)(qres);
 	valueToPrettyString@StringUtils(qres)(str);
+	println@Console(str+"\n")();
+	
+	println@Console("\t\t---RECEIPTS---")();
+	qr = "SELECT * FROM receipts";
+	query@Database(qr)(qres);
+	valueToPrettyString@StringUtils(qres)(str);
 	println@Console(str+"\n")()
 }
 
@@ -572,12 +595,12 @@ define checkCID
 
 main 
 {	
-	[book(seatRequest)(receipt)  //Coordinator
-	{
-		getRandomUUID@StringUtils()(receipt)
-	}]
-	{
-		transName = serverName+(++id);  // TODO leggere il numero di transazione dal db
+	[book(seatRequest)(response)  //Coordinator
+	{	
+		synchronized (id)
+		{
+			transName = serverName+(++global.id) // TODO leggere il numero di transazione dal db
+		};
 		transInfo.tid = transName;
 		transInfo.coordLocation = myLocation;
 		
@@ -607,13 +630,26 @@ main
 		// if all can commit, proceed; else, abort.
 		if(allCanCommit==true)
 		{
-			finalizeCommit
+			finalizeCommit;
+			response.success = true;
+			getRandomUUID@StringUtils()(response.receipt)
 		}
 		else
 		{
-			abortAll
+			abortAll;
+			response.success = false
+		}
+	}]
+	{
+		undef(global.openTrans.(transName));
+		if(response.success)
+		{
+			ur = "INSERT INTO receipts(tid, hash) VALUES (:tid, :hash)";
+			ur.tid = transName;
+			md5@MessageDigest(response.receipt)(ur.hash);
+			update@Database(ur)()
 		};
-		undef(global.openTrans.(transName))
+		showDBS
 	}
 	
 	[spawnReqLock(tc)()  //Coordinator
@@ -703,7 +739,7 @@ main
 				tr.statement[i].flight = lockRequest.seat[i].flightID;
 				tr.statement[i].seat = lockRequest.seat[i].number;
 				tr.statement[i].tid = transName;
-				tr.statement[i].newst = 2;
+				tr.statement[i].newst = 1;
 				tr.statement[i].newcust = transName
 			};
 			// se non sono riuscito a bloccare tutti i posti li libero tutti
