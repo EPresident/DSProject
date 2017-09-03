@@ -34,11 +34,13 @@ type lockRequest: void{
 	}
 	.transInfo: transInfo
 	.cid: string
+	.receiptHash: string
 }
 
-type bookResponse: void{
-	.success: bool
-	.receipt?: string
+type undoRequest: void{
+	.tid: string
+	.receipt: string
+	.seatRequest?: seatRequest
 }
 
 interface FlightBookingInterface{
@@ -47,12 +49,16 @@ interface FlightBookingInterface{
 	RequestResponse:
 		canCommit(transRequest)(bool),
 		doCommit(transRequest)(bool),
-		abort(transRequest)(void)
+		abort(transRequest)(void),
+		undoAll(undoRequest)(bool),
+		undo(undoRequest)(bool)
 }
 
 interface Coordinator{
 	//OneWay: 
 	RequestResponse: 
 		getDecision(string)(bool),
-		book(seatRequest)(bookResponse)
+		book(seatRequest)(bookResponse),
+		unbookAll(undoRequest)(bool),
+		unbook(undoRequest)(bool)
 }

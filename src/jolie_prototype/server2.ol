@@ -113,6 +113,7 @@ init
 			update@Database( updateRequest )( ret )
 	};   
     
+	// Flights and seats table (participant)
 	scope ( createTables ) 
 	{
 		install ( SQLException => println@Console("Seat table already there")() );
@@ -125,6 +126,8 @@ init
 				" PRIMARY KEY(flight,seat))";
 		update@Database( updateRequest )( ret )
 	};
+	
+	// Ongoing transactions' change table (participant)
 	scope ( createTablet ) 
 	{
 		install ( SQLException => println@Console("Transact table already there")() );
@@ -139,6 +142,8 @@ init
 			" PRIMARY KEY(seat,flight))";
 		update@Database( updateRequest )( ret )
 	};
+	
+	// Table of participants to a transaction (coordinator)
 	scope ( createTablec ) 
 	{
 		install ( SQLException => println@Console("Coord table already there")() );
@@ -151,6 +156,8 @@ init
 				" PRIMARY KEY(tid,partec))";
 		update@Database( updateRequest )( ret )
 	};
+	
+	// Table of coordinator and cid for each transaction (participant)
 	scope ( createTransReg ) 
 	{
 		install ( SQLException => println@Console("Transaction registry already there")() );
@@ -162,6 +169,8 @@ init
 				" PRIMARY KEY(tid))";
 		update@Database( updateRequest )( ret )
 	};
+	
+	// Table of the receipt hash for each transaction
 	scope ( createReceiptsTable ) 
 	{
 		install ( SQLException => println@Console("Receipts registry already there")() );
@@ -417,6 +426,9 @@ define abort
 	tr.statement[2] ="DELETE FROM transreg WHERE tid= :tid";
 	tr.statement[2].tid = transName;
 	
+	tr.statement[3] ="DELETE FROM receipts WHERE tid= :tid";
+	tr.statement[3].tid = transName;
+	
 	install 
 	(
 		IOException => println@Console( "Database non disponibile quindi non posso rimuovere e devo propagare l'eccezione al coordinatore in modo che mi ricontatti quando sarà possibile")(),
@@ -611,9 +623,16 @@ main
                 
 		println@Console("\nAperta transazione "+transName)();
 		
+		getRandomUUID@StringUtils()(response.receipt); // Generate receipt
+		synchronized (transName) // Calculate hash
+		{
+			md5@MessageDigest(response.receipt)(global.openTrans.(transName).receiptHash)
+		};		
+		
 		// Request lock-ins
 		req.tid = transName;
 		req.count=#seatRequest.lserv-1;
+		
 		spawnReqLock@Self(req)();
                 
 		// Give the participants time to process
@@ -631,24 +650,26 @@ main
 		if(allCanCommit==true)
 		{
 			finalizeCommit;
-			response.success = true;
-			getRandomUUID@StringUtils()(response.receipt)
-		}
-		else
+			response.success = true		
+		} else
 		{
 			abortAll;
 			response.success = false
 		}
 	}]
-	{
-		undef(global.openTrans.(transName));
+	{	
 		if(response.success)
 		{
-			ur = "INSERT INTO receipts(tid, hash) VALUES (:tid, :hash)";
-			ur.tid = transName;
-			md5@MessageDigest(response.receipt)(ur.hash);
-			update@Database(ur)()
+			scope (storeReceipt)
+			{
+				install (SQLException => println@Console("Ricevuta per la transazione già presente! (Sono già partecipante)")());
+				ur = "INSERT INTO receipts(tid, hash) VALUES (:tid, :hash)";
+				ur.tid = transName;
+				ur.hash = global.openTrans.(transName).receiptHash;
+				update@Database(ur)()
+			}
 		};
+		undef(global.openTrans.(transName));
 		showDBS
 	}
 	
@@ -669,6 +690,7 @@ main
 				lockRequest.transInfo << transInfo;
 				// each participant is given a unique ID for this coordinator
 				getRandomUUID@StringUtils()(lockRequest.cid); 
+				lockRequest.receiptHash = global.openTrans.(transName).receiptHash;
 				
 				// Register participants
 				i = #participants;
@@ -756,6 +778,11 @@ main
 			tr.statement[#lockRequest.seat+2].tid = lockRequest.transInfo.tid;
 			tr.statement[#lockRequest.seat+2].coord = lockRequest.transInfo.coordLocation;
 			tr.statement[#lockRequest.seat+2].cid = lockRequest.cid;
+			
+			// Store receipt hash
+			tr.statement[#lockRequest.seat+3] = "INSERT INTO receipts(tid, hash) VALUES (:tid, :hash)";
+			tr.statement[#lockRequest.seat+3].tid = transName;
+			tr.statement[#lockRequest.seat+3].hash = lockRequest.receiptHash;
 			
 			executeTransaction@Database( tr )( ret )
 		}
@@ -986,4 +1013,46 @@ main
 			}
 		}
 	}]	        
+	
+	//==================================================================================================
+	
+	[unbookAll(request)(success)
+	{
+		println@Console("Richiesto l'annullamento di "+request.tid)();
+		scope(receiptCheck)
+		{
+			install
+			( 
+				InvalidReceipt => success = false;
+				println@Console("Ricevuta invalida!")()
+			);	
+			
+			qr = "SELECT hash FROM receipts WHERE tid = :tid";
+			qr.tid = request.tid;
+			query@Database(qr)(qres);
+			
+			md5@MessageDigest(request.receipt)(receivedHash);
+			
+			if( qres.row[0].hash != receivedHash )
+			{
+				throw (InvalidReceipt)
+			};
+			// Receipt is valid
+			abortAll;
+			
+			ur = "DELETE FROM receipts WHERE tid = :tid";
+			ur.tid = request.tid;
+			update@Database(ur)(resp);
+			
+			success = true;
+			println@Console(request.tid+" abortita.")()
+		}
+	}]
+	
+	//==================================================================================================
+	
+	/*[unbook(request)(success)
+	{
+		
+	}]*/
 }
