@@ -21,26 +21,30 @@ type seatRequest: void{
 	.lserv[1,*]: void{	
 		.server: string
 		.seat[1,*]: void{
-                    .number: int
-                    .flightID: string
-                    }
+			.number: int
+			.flightID: string
+			.receiptForUndo?: string
+		}
 	}
 }
 
 type lockRequest: void{
-	.seat[1,*]: void{
+	.seat[1,*]: void
+	{
 		.number: int
 		.flightID: string
+		.receiptForUndo?: string
 	}
 	.transInfo: transInfo
 	.cid: string
 	.receiptHash: string
 }
 
-type undoRequest: void{
-	.tid: string
-	.receipt: string
-	.seatRequest?: seatRequest
+type seatResp: void{
+	.seat[0,*]: int 
+	{
+		.flight: string
+	}
 }
 
 interface FlightBookingInterface{
@@ -50,8 +54,7 @@ interface FlightBookingInterface{
 		canCommit(transRequest)(bool),
 		doCommit(transRequest)(bool),
 		abort(transRequest)(void),
-		undoAll(undoRequest)(bool),
-		undo(undoRequest)(bool)
+		getAvailableSeats(string)(seatResp)
 }
 
 interface Coordinator{
@@ -59,6 +62,4 @@ interface Coordinator{
 	RequestResponse: 
 		getDecision(string)(bool),
 		book(seatRequest)(bookResponse),
-		unbookAll(undoRequest)(bool),
-		unbook(undoRequest)(bool)
 }
