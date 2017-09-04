@@ -133,6 +133,7 @@ init
 			" `tid`	TEXT NOT NULL, "+
 			" `seat`	INTEGER NOT NULL, "+
 			" `flight`	TEXT NOT NULL, "+
+			" `oldst`	INTEGER, "+
 			" `newst`	INTEGER, "+
 			" `newcust`	TEXT, "+
 			" `committed` INTEGER NOT NULL DEFAULT 0, "+ // 0 = TENTATIVE, 1 = COMMITTED
@@ -404,8 +405,7 @@ define abort
 	// Variable transName must be defined
 
 	//esegui transazione di abort per tid sul db
-	tr.statement[0] ="UPDATE seat SET state = 0, "+
-		" customer = (SELECT trans.newcust FROM trans  "+
+	tr.statement[0] ="UPDATE seat SET state = (SELECT trans.oldst FROM trans  "+
 		" WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid) "+
 		" WHERE EXISTS ( SELECT * FROM trans  "+
 		" WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid) ";
@@ -606,6 +606,7 @@ main
 		
 		global.openTrans.(transName) << transInfo;
 		global.openTrans.(transName).seatRequest << seatRequest;
+		global.openTrans.(transName).cancid = "generarehashemandarealclient";
 		
 		participants -> global.openTrans.(transName).participant;
                 
@@ -667,6 +668,7 @@ main
 				
 				lockRequest.seat << global.openTrans.(transName).seatRequest.lserv[tc.count].seat;
 				lockRequest.transInfo << transInfo;
+				lockRequest.cancel = global.openTrans.(transName).cancid;
 				// each participant is given a unique ID for this coordinator
 				getRandomUUID@StringUtils()(lockRequest.cid); 
 				
@@ -734,13 +736,22 @@ main
 			//verificare la semantica in caso di errori negli update della stessa transazione
 			for(i=0, i<#lockRequest.seat, i++)
 			{
-				tr.statement[i] = "INSERT INTO trans(tid, seat,flight, newst, newcust,committed) SELECT :tid, :seat, :flight, :newst, :newcust , 0 "
-				+"WHERE 0 = (SELECT state FROM seat WHERE flight=:flight AND seat=:seat)" ;
+				tr.statement[i] = "INSERT INTO trans(tid, seat,flight, newst, oldst, newcust,committed) SELECT :tid, :seat, :flight, :newst, :oldst, :newcust , 0 "
+				+"WHERE :oldst = (SELECT state FROM seat WHERE flight=:flight AND seat=:seat) " ;
 				tr.statement[i].flight = lockRequest.seat[i].flightID;
 				tr.statement[i].seat = lockRequest.seat[i].number;
 				tr.statement[i].tid = transName;
-				tr.statement[i].newst = 1;
-				tr.statement[i].newcust = transName
+				if  ( is_defined( lockRequest.seat[i].cancel ) ){ //cancellazione
+                                    tr.statement[i] = tr.statement[i]+" AND :cancel = (SELECT customer FROM seat WHERE flight=:flight AND seat=:seat)";
+                                    tr.statement[i].newst = 0;
+                                    tr.statement[i].oldst = 2;
+                                    tr.statement[i].newcust = "";
+                                    tr.statement[i].cancel = lockRequest.seat[i].cancel
+				}else{  //prenotazione
+                                    tr.statement[i].newst = 2;
+                                    tr.statement[i].oldst = 0;
+                                    tr.statement[i].newcust = lockRequest.cancel
+				}
 			};
 			// se non sono riuscito a bloccare tutti i posti li libero tutti
 			tr.statement[#lockRequest.seat] = "DELETE FROM trans WHERE tid= :tid AND :count <> (SELECT count(*) FROM trans WHERE tid= :tid) " ;
@@ -810,10 +821,10 @@ main
 		{
 			{
 				{
-                    transName = tc.tid;
-                    participants -> global.openTrans.(transName).participant;
-                    OtherServer.location = participants[tc.count];
-                    println@Console("Chiedo canCommit a "+OtherServer.location  )();
+				transName = tc.tid;
+				participants -> global.openTrans.(transName).participant;
+				OtherServer.location = participants[tc.count];
+				println@Console("Chiedo canCommit a "+OtherServer.location  )();
 					
 					scope(sendMsg)
 					{
@@ -985,5 +996,44 @@ main
 				spawnAbort@Self(d)(resp)
 			}
 		}
-	}]	        
+	}]
+	
+        [getFlights()(listf)
+	{
+            queryRequest =  "SELECT DISTINCT flight FROM seat WHERE state= 0 " ;
+            query@Database( queryRequest )( queryResult );
+            for(i=0, i<#queryResult.row, i++)
+            {
+                listf.flight[i]=queryResult.row[i].flight
+            }
+        }]
+        
+        [getAvarSeat(flight)(listn)
+	{
+            queryRequest =  "SELECT seat FROM seat WHERE flight= :flight " ;
+            queryRequest.flight =flight;
+            query@Database( queryRequest )( queryResult );
+            for(i=0, i<#queryResult.row, i++)
+            {
+                listn.seat[i]=queryResult.row[i].seat
+            }
+        }]
+        
+        [addFlight(d)]
+	{
+            scope ( v2 ) 
+            {
+		install ( SQLException => println@Console("volo già presente")() );
+		for(i=0, i<d.nseat, i++)
+                {
+                    tr.statement[i] =
+			"INSERT INTO seat(flight, seat, state) " +
+			"VALUES (:flight, :seat, :state )";
+                    tr.statement[i].flight = d.flightid;
+                    tr.statement[i].seat = i+1;
+                    tr.statement[i].state = 0
+                };
+		executeTransaction@Database( tr )( ret )
+            }
+	}
 }

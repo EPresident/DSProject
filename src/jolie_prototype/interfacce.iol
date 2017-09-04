@@ -23,7 +23,8 @@ type seatRequest: void{
 		.seat[1,*]: void{
                     .number: int
                     .flightID: string
-                    }
+                    .cancel?:string
+                }
 	}
 }
 
@@ -31,34 +32,46 @@ type lockRequest: void{
 	.seat[1,*]: void{
 		.number: int
 		.flightID: string
+		.cancel?:string
 	}
+	.cancel :string
 	.transInfo: transInfo
 	.cid: string
-	.receiptHash: string
 }
 
-type undoRequest: void{
-	.tid: string
-	.receipt: string
-	.seatRequest?: seatRequest
+type bookResponse: void{
+	.success: bool
+	.receipt?: string
+}
+
+type flightResp: void{
+	.flight[0,*]: string 
+}
+
+type seatResp: void{
+	.seat[0,*]: int
+}
+
+type addR: void{
+        .flightid : string
+	.nseat : int
 }
 
 interface FlightBookingInterface{
 	OneWay: 
-		requestLockIn(lockRequest), 			
+		requestLockIn(lockRequest),
+		addFlight(addR),
 	RequestResponse:
 		canCommit(transRequest)(bool),
 		doCommit(transRequest)(bool),
 		abort(transRequest)(void),
-		undoAll(undoRequest)(bool),
-		undo(undoRequest)(bool)
+                getFlights(void)(flightResp),
+		getAvarSeat(string)(seatResp)
 }
 
 interface Coordinator{
 	//OneWay: 
 	RequestResponse: 
 		getDecision(string)(bool),
-		book(seatRequest)(bookResponse),
-		unbookAll(undoRequest)(bool),
-		unbook(undoRequest)(bool)
+		book(seatRequest)(bookResponse)
 }
