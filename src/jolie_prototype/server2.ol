@@ -106,12 +106,7 @@ init
 			updateRequest ="DROP TABLE transreg";
 			update@Database( updateRequest )( ret )
 	};   
-	scope ( resetrt ) 
-	{
-		install ( SQLException => println@Console("receipts già vuota")() ); 
-			updateRequest ="DROP TABLE receipts";
-			update@Database( updateRequest )( ret )
-	};   
+
     
 	scope ( createTables ) 
 	{
@@ -121,7 +116,7 @@ init
 				" `flight`	TEXT NOT NULL, "+
 				" `seat`	INTEGER NOT NULL, "+
 				" `state`	INTEGER NOT NULL DEFAULT 0, "+
-				" `customer`TEXT, "+
+				" `hash` TEXT, "+
 				" PRIMARY KEY(flight,seat))";
 		update@Database( updateRequest )( ret )
 	};
@@ -133,9 +128,9 @@ init
 			" `tid`	TEXT NOT NULL, "+
 			" `seat`	INTEGER NOT NULL, "+
 			" `flight`	TEXT NOT NULL, "+
-			" `oldst`	INTEGER, "+
-			" `newst`	INTEGER, "+
-			" `newcust`	TEXT, "+
+			" `oldstate`	INTEGER, "+
+			" `newstate`	INTEGER, "+
+			" `newhash`	TEXT, "+
 			" `committed` INTEGER NOT NULL DEFAULT 0, "+ // 0 = TENTATIVE, 1 = COMMITTED
 			" PRIMARY KEY(seat,flight))";
 		update@Database( updateRequest )( ret )
@@ -160,16 +155,6 @@ init
 				" `tid`	TEXT, "+
 				" `coord`	TEXT, "+
 				" `cid`	TEXT, "+
-				" PRIMARY KEY(tid))";
-		update@Database( updateRequest )( ret )
-	};
-	scope ( createReceiptsTable ) 
-	{
-		install ( SQLException => println@Console("Receipts registry already there")() );
-		updateRequest =
-			" CREATE TABLE \"receipts\" ( "+
-				" `tid`	TEXT, "+
-				" `hash`	TEXT, "+
 				" PRIMARY KEY(tid))";
 		update@Database( updateRequest )( ret )
 	};
@@ -224,46 +209,6 @@ init
 		update@Database( updateRequest )( ret )
 	};
 		
-	//se ero coordinatore cercare nel database se transazioni che non hanno ricevuto una risposta al commit
-	//CODE
-	
-	/*scope ( recoveryTest ) 
-	{
-		install ( SQLException => println@Console("vfadasda")() ); 
-		updateRequest =
-			"INSERT INTO coordTrans(tid, partec, state) " +
-			"VALUES (:tid, :partec, :state)";
-		updateRequest.tid = "Lefthansa4B0R7";
-		updateRequest.partec = "socket://localhost:8001";
-		updateRequest.state = 0;
-		update@Database( updateRequest )( ret );
-		
-		updateRequest =
-			"INSERT INTO trans(tid, seat, flight, newst, committed) " +
-			"VALUES (:tid, :seat, :flight, 1, 0)";
-		updateRequest.tid = "Lefthansa4B0R7";
-		updateRequest.seat = 666;
-		updateRequest.flight = "SA0666";
-		update@Database( updateRequest )( ret );
-		
-		updateRequest =
-			"INSERT INTO trans(tid, seat, flight, newst, committed) " +
-			"VALUES (:tid, :seat, :flight, 1, 1)";
-		updateRequest.tid = "Lefthansa4B0R7";
-		updateRequest.seat = 999;
-		updateRequest.flight = "SA0666";
-		update@Database( updateRequest )( ret );
-		
-		updateRequest =
-			"INSERT INTO coordTrans(tid, partec, state) " +
-			"VALUES (:tid, :partec, :state)";
-		updateRequest.tid = "Lefthansa4B0R7";
-		updateRequest.partec = "socket://localhost:8000";
-		updateRequest.state = 0;
-		update@Database( updateRequest )( ret )
-	};*/
-	
-	
 	coordinatorRecovery;
 	transactionRecovery
 }
@@ -352,12 +297,6 @@ define finalizeCommit
 	serverfail=queryResult.row.count;
 	
 	println@Console("----> Transaction "+transName+" was successful! Errors: "+serverfail+"<----")()
-	
-// 	if (serverfail!=0)
-// 	{
-//             sleep(60000);
-//             recoveryCoord
-// 	}
 }
 
 define showDBS
@@ -385,12 +324,6 @@ define showDBS
 	query@Database(qr)(qres);
 	valueToPrettyString@StringUtils(qres)(str);
 	println@Console(str+"\n")();
-	
-	println@Console("\t\t---RECEIPTS---")();
-	qr = "SELECT * FROM receipts";
-	query@Database(qr)(qres);
-	valueToPrettyString@StringUtils(qres)(str);
-	println@Console(str+"\n")()
 }
 
 define showInternalState
@@ -405,7 +338,8 @@ define abort
 	// Variable transName must be defined
 
 	//esegui transazione di abort per tid sul db
-	tr.statement[0] ="UPDATE seat SET state = (SELECT trans.oldst FROM trans  "+
+	tr.statement[0] ="UPDATE seat SET state = 0, "+
+		" hash = (SELECT trans.newhash FROM trans  "+
 		" WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid) "+
 		" WHERE EXISTS ( SELECT * FROM trans  "+
 		" WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid) ";
@@ -432,9 +366,9 @@ define doCommit
 {
 	// Variable transName must be defined
 	
-	tr.statement[0] ="UPDATE seat SET state = (SELECT trans.newst FROM trans "+
+	tr.statement[0] ="UPDATE seat SET state = (SELECT trans.newstate FROM trans "+
 		" WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid), "+
-		" customer = (SELECT trans.newcust FROM trans  "+
+		" hash = (SELECT trans.newchash FROM trans  "+
 		" WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid) "+
 		" WHERE EXISTS ( SELECT * FROM trans  "+
 		" WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid) ";
@@ -501,11 +435,7 @@ define coordinatorRecovery
 		}
 	};
 	undef(OtherServer.location);
-	println@Console("\t\t--- Coordinator recovery done.---")()//;
-	//showDBS
-	// sleep(120000);
-        // coordinatorRecovery@Self()() //necessario anche se gli altri server non rispondono subito
-	
+	println@Console("\t\t--- Coordinator recovery done.---")()//;	
 }
 
 define transactionRecovery
@@ -608,9 +538,14 @@ main
 		global.openTrans.(transName).seatRequest << seatRequest;
 		global.openTrans.(transName).cancid = "generarehashemandarealclient";
 		
-		participants -> global.openTrans.(transName).participant;
-                
+		getRandomUUID@StringUtils()(response.receipt); // Generate receipt
+		synchronized (transName) // Calculate hash
+		{
+			md5@MessageDigest(response.receipt)(global.openTrans.(transName).receiptHash)
+		};	
+
 		println@Console("\nAperta transazione "+transName)();
+		participants -> global.openTrans.(transName).participant; 
 		
 		// Request lock-ins
 		req.tid = transName;
@@ -641,15 +576,8 @@ main
 			response.success = false
 		}
 	}]
-	{
+	{	
 		undef(global.openTrans.(transName));
-		if(response.success)
-		{
-			ur = "INSERT INTO receipts(tid, hash) VALUES (:tid, :hash)";
-			ur.tid = transName;
-			md5@MessageDigest(response.receipt)(ur.hash);
-			update@Database(ur)()
-		};
 		showDBS
 	}
 	
@@ -684,8 +612,8 @@ main
 						SQLException => println@Console("Partecipante duplicato quindi input non valido e abortisco la transazione")(), //aggiungere
 						IOException => println@Console( "Database non disponibile 	quindi abortisco la transazione")() //aggiungere
 					);
+					
 					// Save participant in the database through a transaction
-
 					tr.statement[0] ="INSERT INTO coordtrans(tid, partec, cid, state) " +
 						"VALUES (:tid, :partec, :cid, :state)";
 					tr.statement[0].tid = transName;
@@ -723,10 +651,7 @@ main
 		transName = lockRequest.transInfo.tid;
 		
 		scope(lock)
-		{
-		//valueToPrettyString@StringUtils(lockRequest)(str);
-		//println@Console(str+ #lockRequest.seat)();
-			
+		{		
 			install 
 			(
 				SQLException => println@Console(" Esiste già un lock su seat,flight quindi fallisco")(),
@@ -736,21 +661,24 @@ main
 			//verificare la semantica in caso di errori negli update della stessa transazione
 			for(i=0, i<#lockRequest.seat, i++)
 			{
-				tr.statement[i] = "INSERT INTO trans(tid, seat,flight, newst, oldst, newcust,committed) SELECT :tid, :seat, :flight, :newst, :oldst, :newcust , 0 "
-				+"WHERE :oldst = (SELECT state FROM seat WHERE flight=:flight AND seat=:seat) " ;
+				// Record the changes to be done
+				tr.statement[i] = "INSERT INTO trans(tid, seat,flight, oldstate, newstate, newhash, committed) SELECT :tid, :seat, :flight, :oldstate, :newstate, :newhash , 0 "
+				+"WHERE :oldstate = (SELECT state FROM seat WHERE flight=:flight AND seat=:seat)" ;
 				tr.statement[i].flight = lockRequest.seat[i].flightID;
 				tr.statement[i].seat = lockRequest.seat[i].number;
 				tr.statement[i].tid = transName;
-				if  ( is_defined( lockRequest.seat[i].cancel ) ){ //cancellazione
-                                    tr.statement[i] = tr.statement[i]+" AND :cancel = (SELECT customer FROM seat WHERE flight=:flight AND seat=:seat)";
-                                    tr.statement[i].newst = 0;
-                                    tr.statement[i].oldst = 2;
-                                    tr.statement[i].newcust = "";
-                                    tr.statement[i].cancel = lockRequest.seat[i].cancel
+				if  ( is_defined( lockRequest.seat[i].receiptForUndo ) ){ //cancellazione
+					println@Console("Richiesto annullamento");
+					tr.statement[i] = tr.statement[i]+" AND :hash = (SELECT hash FROM seat WHERE flight=:flight AND seat=:seat)";
+					tr.statement[i].newstate = 0;
+					tr.statement[i].oldstate = 1;
+					tr.statement[i].newhash = "";
+					md5@MessageDigest(lockRequest.seat[i].receiptForUndo)(tr.statement[i].hash)
 				}else{  //prenotazione
-                                    tr.statement[i].newst = 2;
-                                    tr.statement[i].oldst = 0;
-                                    tr.statement[i].newcust = lockRequest.cancel
+					println@Console("Richiesta prenotazione");
+					tr.statement[i].newstate = 1;
+					tr.statement[i].oldstate = 0;
+					tr.statement[i].newhash = lockRequest.receiptHash
 				}
 			};
 			// se non sono riuscito a bloccare tutti i posti li libero tutti
@@ -996,44 +924,19 @@ main
 				spawnAbort@Self(d)(resp)
 			}
 		}
+	}]	        
+	//==================================================================================================
+	
+	// Get the list of free seats
+	[getAvailableSeats(flight)(seatList)
+	{
+		queryRequest =  "SELECT seat, flight FROM seat WHERE state = 0" ;
+		query@Database( queryRequest )( queryResult );
+		for(row in queryResult.row)
+		{
+			i = #seatList.seat;
+			seatList.seat[i] = row.seat;
+			seatList.seat[i].flight = row.flight;
+		}
 	}]
 	
-        [getFlights()(listf)
-	{
-            queryRequest =  "SELECT DISTINCT flight FROM seat WHERE state= 0 " ;
-            query@Database( queryRequest )( queryResult );
-            for(i=0, i<#queryResult.row, i++)
-            {
-                listf.flight[i]=queryResult.row[i].flight
-            }
-        }]
-        
-        [getAvarSeat(flight)(listn)
-	{
-            queryRequest =  "SELECT seat FROM seat WHERE flight= :flight " ;
-            queryRequest.flight =flight;
-            query@Database( queryRequest )( queryResult );
-            for(i=0, i<#queryResult.row, i++)
-            {
-                listn.seat[i]=queryResult.row[i].seat
-            }
-        }]
-        
-        [addFlight(d)]
-	{
-            scope ( v2 ) 
-            {
-		install ( SQLException => println@Console("volo già presente")() );
-		for(i=0, i<d.nseat, i++)
-                {
-                    tr.statement[i] =
-			"INSERT INTO seat(flight, seat, state) " +
-			"VALUES (:flight, :seat, :state )";
-                    tr.statement[i].flight = d.flightid;
-                    tr.statement[i].seat = i+1;
-                    tr.statement[i].state = 0
-                };
-		executeTransaction@Database( tr )( ret )
-            }
-	}
-}
