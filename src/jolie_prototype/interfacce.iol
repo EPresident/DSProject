@@ -47,10 +47,14 @@ type seatResp: void{
 	}
 }
 
+type bookResponse: void{
+	.success: bool
+	.receipt?: string
+}
+
 interface FlightBookingInterface{
 	OneWay: 
 		requestLockIn(lockRequest),
-		addFlight(addR),
 	RequestResponse:
 		canCommit(transRequest)(bool),
 		doCommit(transRequest)(bool),
@@ -61,6 +65,6 @@ interface FlightBookingInterface{
 interface Coordinator{
 	//OneWay: 
 	RequestResponse: 
-		getDecision(string)(bool),
-		book(seatRequest)(bookResponse),
+	getDecision(string)(bool),
+	book(seatRequest)(bookResponse)
 }

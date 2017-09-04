@@ -323,7 +323,7 @@ define showDBS
 	qr = "SELECT * FROM transreg";
 	query@Database(qr)(qres);
 	valueToPrettyString@StringUtils(qres)(str);
-	println@Console(str+"\n")();
+	println@Console(str+"\n")()
 }
 
 define showInternalState
@@ -668,14 +668,14 @@ main
 				tr.statement[i].seat = lockRequest.seat[i].number;
 				tr.statement[i].tid = transName;
 				if  ( is_defined( lockRequest.seat[i].receiptForUndo ) ){ //cancellazione
-					println@Console("Richiesto annullamento");
+					println@Console("Richiesto annullamento")();
 					tr.statement[i] = tr.statement[i]+" AND :hash = (SELECT hash FROM seat WHERE flight=:flight AND seat=:seat)";
 					tr.statement[i].newstate = 0;
 					tr.statement[i].oldstate = 1;
 					tr.statement[i].newhash = "";
 					md5@MessageDigest(lockRequest.seat[i].receiptForUndo)(tr.statement[i].hash)
 				}else{  //prenotazione
-					println@Console("Richiesta prenotazione");
+					println@Console("Richiesta prenotazione")();
 					tr.statement[i].newstate = 1;
 					tr.statement[i].oldstate = 0;
 					tr.statement[i].newhash = lockRequest.receiptHash
@@ -936,7 +936,7 @@ main
 		{
 			i = #seatList.seat;
 			seatList.seat[i] = row.seat;
-			seatList.seat[i].flight = row.flight;
+			seatList.seat[i].flight = row.flight
 		}
 	}]
-	
+}
