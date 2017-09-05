@@ -26,6 +26,7 @@ type seatRequest: void{
 			.receiptForUndo?: string
 		}
 	}
+	.client?: string
 }
 
 type lockRequest: void{

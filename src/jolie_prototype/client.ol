@@ -51,7 +51,7 @@ init
 	scope ( reset ) 
 	{
 		install ( SQLException => println@Console("receipts gia vuota")() ); 
-			updateRequest ="DROP TABLE receipts";
+			updateRequest ="DROP TABLE receipt";
 			update@Database( updateRequest )( ret )
 	};   
 	
@@ -105,9 +105,10 @@ define tryBooking
 		valueToPrettyString@StringUtils(seatList)(str);
 		println@Console("Il coordinatore ha i posti "+str)();
 		
-           book@FlightBookingService(seatRequest)(response);
+		seatRequest.client = myLocation;
+		book@FlightBookingService(seatRequest)(response);
 		
-           if(response.success)
+		if(response.success)
 		{
 			println@Console("Successo! Ricevuta: "+response.receipt)();
 			sleep@Time(2000)();
@@ -144,7 +145,8 @@ main
 	[book(seatRequest)]
 	{
 		attemptsLeft = 3;
-		tryBooking
+		tryBooking;
+		showDB
 	}
 	
 	[canCommit(receipt)(answer)
@@ -160,6 +162,7 @@ main
 			"VALUES (:rc)";
 		updateRequest.rc = receipt;
 		update@Database( updateRequest )( ret );
+		println@Console("Can commit.")();
 		answer = true
 	}]
 }

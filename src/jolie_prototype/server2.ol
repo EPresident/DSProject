@@ -25,7 +25,6 @@ inputPort LocalInput {
   Interfaces: TimeoutInterface
 }
 
-
 inputPort FlightBookingService 
 {
   Location: myLocation
@@ -43,6 +42,12 @@ outputPort Coordinator
 {
   Protocol: sodep
   Interfaces: Coordinator
+}
+
+outputPort Client 
+{
+  Protocol: sodep
+  Interfaces: ClientInterface
 }
 
 type tidcount: void{
@@ -586,7 +591,7 @@ main
 		transInfo.tid = transName;
 		transInfo.coordLocation = myLocation;
 		
-		timeoutReq = 10000; // timeout after a minute
+		timeoutReq = 60000; // timeout after a minute
 		timeoutReq.message = transName;
 		setNextTimeout@Time(timeoutReq);
 		
@@ -625,6 +630,20 @@ main
 		req.count=#participants-1;
 		spawnCanCommit@Self(req)(allCanCommit);
                 
+		// Check if the client is still alive and well
+		Client.location = seatRequest.client;
+		println@Console("Client: "+Client.location)();
+		scope(clientCheck)
+		{
+			install
+			( 
+				default => println@Console("Client unresponsive! Aborting.")();
+				allCanCommit=false
+			);
+			canCommit@Client(response.receipt)(answer);
+			allCanCommit = allCanCommit && answer
+		};
+		
 		// if all can commit, proceed; else, abort.
 		if(allCanCommit==true)
 		{
@@ -640,7 +659,6 @@ main
 	{	
 		undef(global.openTrans.(transName));
 		showDBS;
-		println@Console("Forse è andato tutto bene...")()
 	}
 	
 	

@@ -58,7 +58,5 @@ main
 	request.lserv[1].seat[0].number=44;
 	
 	book@ClientService(request);
-	println@Console("Fatto.")();
-	showDB
-
+	println@Console("Fatto.")()
 }
