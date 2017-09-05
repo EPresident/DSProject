@@ -31,7 +31,20 @@ define retry
             book@FlightBookingService(request)(response);
             if(response.success)
 			{
-				println@Console("Successo! Ricevuta: "+response.receipt)()
+				println@Console("Successo! Ricevuta: "+response.receipt)();
+				sleep@Time(2000)();
+				println@Console("Annullo la transazione")();
+				request.lserv[0].seat[0].receiptForUndo=response.receipt;
+				request.lserv[0].seat[1].receiptForUndo=response.receipt;
+				request.lserv[1].seat[0].receiptForUndo=response.receipt;
+				book@FlightBookingService(request)(response);
+				if(response.success)
+				{
+					println@Console("Annullato con successo. Ricevuta: "+response.receipt)()
+				}else
+				{
+					println@Console("Annullamento fallito!")()
+				}
 			} else
 			{
 				println@Console("Transazione fallita.")()

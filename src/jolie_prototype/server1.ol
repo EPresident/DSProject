@@ -368,7 +368,7 @@ define doCommit
 	
 	tr.statement[0] ="UPDATE seat SET state = (SELECT trans.newstate FROM trans "+
 		" WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid), "+
-		" hash = (SELECT trans.newchash FROM trans  "+
+		" hash = (SELECT trans.newhash FROM trans  "+
 		" WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid) "+
 		" WHERE EXISTS ( SELECT * FROM trans  "+
 		" WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid) ";
@@ -382,9 +382,11 @@ define doCommit
 	
 	install 
 	(
-		IOException => println@Console( "Database non disponibile quindi non posso finalizzare il commit locale e devo propagare l'eccezione al coordinatore in modo che mi ricontatti quando sarà possibile")(),
+		IOException => println@Console( "Database non disponibile quindi non posso finalizzare il commit locale e devo propagare l'eccezione al coordinatore in modo che mi ricontatti quando sarà possibile")();
+		answer = false,
 		//throw al coordinatore
-		SQLException => println@Console( "Impossibile sql commit partec")()
+		SQLException => println@Console( "Impossibile sql commit partec")();
+		answer = false
 	);
 	executeTransaction@Database( tr )( ret );
 	
@@ -536,7 +538,6 @@ main
 		
 		global.openTrans.(transName) << transInfo;
 		global.openTrans.(transName).seatRequest << seatRequest;
-		global.openTrans.(transName).cancid = "generarehashemandarealclient";
 		
 		getRandomUUID@StringUtils()(response.receipt); // Generate receipt
 		synchronized (transName) // Calculate hash
@@ -596,7 +597,7 @@ main
 				
 				lockRequest.seat << global.openTrans.(transName).seatRequest.lserv[tc.count].seat;
 				lockRequest.transInfo << transInfo;
-				lockRequest.cancel = global.openTrans.(transName).cancid;
+				lockRequest.receiptHash = global.openTrans.(transName).receiptHash;
 				// each participant is given a unique ID for this coordinator
 				getRandomUUID@StringUtils()(lockRequest.cid); 
 				

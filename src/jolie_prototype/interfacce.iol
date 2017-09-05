@@ -35,7 +35,7 @@ type lockRequest: void{
 		.flightID: string
 		.receiptForUndo?: string
 	}
-	.cancel :string
+	.receiptHash :string
 	.transInfo: transInfo
 	.cid: string
 }

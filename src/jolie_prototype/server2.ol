@@ -368,7 +368,7 @@ define doCommit
 	
 	tr.statement[0] ="UPDATE seat SET state = (SELECT trans.newstate FROM trans "+
 		" WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid), "+
-		" hash = (SELECT trans.newchash FROM trans  "+
+		" hash = (SELECT trans.newhash FROM trans  "+
 		" WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid) "+
 		" WHERE EXISTS ( SELECT * FROM trans  "+
 		" WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid) ";
@@ -380,11 +380,13 @@ define doCommit
 	tr.statement[2] =    "DELETE FROM transreg WHERE tid= :tid";
 	tr.statement[2].tid = transName;
 	
-	install 
+	install // scope main
 	(
-		IOException => println@Console( "Database non disponibile quindi non posso finalizzare il commit locale e devo propagare l'eccezione al coordinatore in modo che mi ricontatti quando sarà possibile")(),
+		IOException => println@Console( "Database non disponibile quindi non posso finalizzare il commit locale e devo propagare l'eccezione al coordinatore in modo che mi ricontatti quando sarà possibile")();
+		answer = false,
 		//throw al coordinatore
-		SQLException => println@Console( "Impossibile sql commit partec")()
+		SQLException => println@Console( "Impossibile sql commit partec")();
+		answer = false
 	);
 	executeTransaction@Database( tr )( ret );
 	
@@ -395,7 +397,6 @@ define doCommit
 
 define coordinatorRecovery
 {
-	//showDBS;
 	// Look for leftover transactions
 	// prefix cr_ is to avoid variable clashes with abort procedure
 	println@Console("\t\t---COORDINATOR RECOVERY---")();
@@ -536,7 +537,6 @@ main
 		
 		global.openTrans.(transName) << transInfo;
 		global.openTrans.(transName).seatRequest << seatRequest;
-		global.openTrans.(transName).cancid = "generarehashemandarealclient";
 		
 		getRandomUUID@StringUtils()(response.receipt); // Generate receipt
 		synchronized (transName) // Calculate hash
@@ -544,7 +544,12 @@ main
 			md5@MessageDigest(response.receipt)(global.openTrans.(transName).receiptHash)
 		};	
 
-		println@Console("\nAperta transazione "+transName)();
+		println@Console("========================================================================")();
+		println@Console("========================================================================")();
+		println@Console("========================================================================")();
+		println@Console("Aperta transazione "+transName)();
+		println@Console("\tCon receipt "+response.receipt)();
+		println@Console("\tCon receiptHash "+global.openTrans.(transName).receiptHash)();
 		participants -> global.openTrans.(transName).participant; 
 		
 		// Request lock-ins
@@ -567,8 +572,7 @@ main
 		if(allCanCommit==true)
 		{
 			finalizeCommit;
-			response.success = true;
-			getRandomUUID@StringUtils()(response.receipt)
+			response.success = true
 		}
 		else
 		{
@@ -596,7 +600,7 @@ main
 				
 				lockRequest.seat << global.openTrans.(transName).seatRequest.lserv[tc.count].seat;
 				lockRequest.transInfo << transInfo;
-				lockRequest.cancel = global.openTrans.(transName).cancid;
+				lockRequest.receiptHash = global.openTrans.(transName).receiptHash;
 				// each participant is given a unique ID for this coordinator
 				getRandomUUID@StringUtils()(lockRequest.cid); 
 				
@@ -673,7 +677,9 @@ main
 					tr.statement[i].newstate = 0;
 					tr.statement[i].oldstate = 1;
 					tr.statement[i].newhash = "";
-					md5@MessageDigest(lockRequest.seat[i].receiptForUndo)(tr.statement[i].hash)
+					md5@MessageDigest(lockRequest.seat[i].receiptForUndo)(tr.statement[i].hash);
+					println@Console("------>"+lockRequest.seat[i].receiptForUndo)();
+					println@Console("------>"+tr.statement[i].hash)()
 				}else{  //prenotazione
 					println@Console("Richiesta prenotazione")();
 					tr.statement[i].newstate = 1;
