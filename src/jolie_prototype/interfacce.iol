@@ -52,6 +52,16 @@ type bookResponse: void{
 	.receipt?: string
 }
 
+interface ClientInterface{
+	RequestResponse: 
+		canCommit(string)(bool)
+}
+
+interface InternalClientInterface{
+	OneWay:
+		book(seatRequest)
+}
+
 interface FlightBookingInterface{
 	OneWay: 
 		requestLockIn(lockRequest),
@@ -67,5 +77,5 @@ interface Coordinator{
 	//OneWay: 
 	RequestResponse: 
 	getDecision(string)(bool),
-	book(seatRequest)(bookResponse)
+	book(seatRequest)(bookResponse) throws InterruptedException
 }

@@ -15,6 +15,17 @@ constants
 	locatSubServ= "socket://localhost:8004"
 }
 
+interface TimeoutInterface {
+  OneWay:
+    timeout ( undefined )
+}
+
+inputPort LocalInput {
+  Location : "local"
+  Interfaces: TimeoutInterface
+}
+
+
 inputPort FlightBookingService 
 {
   Location: myLocation
@@ -210,7 +221,13 @@ init
 	};
 		
 	coordinatorRecovery;
-	transactionRecovery
+	transactionRecovery;
+	install( default => 
+			println@Console( "This is the recovery activity for book" )(),
+			this => 
+			println@Console( "This is the recovery activity for book" )()
+		)
+
 }
 
 /*
@@ -224,37 +241,41 @@ init
 define abortAll
 {
 	// Register abort in progress  ?? potrei aver registrato pure prima delle risposte del cancommit come abort ??
-	for(i=0, i<#participants, i++)
+	participants -> global.openTrans.(transName).participant;
+	if(#participants > 0)
 	{
-		// Register that the transaction has aborted
-		tr.statement[i] ="UPDATE coordtrans SET state = 3 "+ // ABORTED
-		"WHERE tid = :tid AND partec = :partec";
-		tr.statement[i].tid = transName;
-		tr.statement[i].partec = participants[i]
-	};
-
-	scope (abortAllTrans)
-	{
-		install
-		(
-			SQLException => println@Console("Impossibile sql abortall coord ")(),
-			IOException => println@Console("DB non raggiungibile quindi non posso decidere per "+transName)()
-		);
-		executeTransaction@Database(tr)(ret)
-	};
-	undef(tr);
-
-	// Ask all participants to abort the transaction
-	println@Console("Begin concurrent abort "+transName)();
-	req.tid = transName;
-	req.count=#participants-1;
-	spawnAbort@Self(req)();
+		for(i=0, i<#participants, i++)
+		{
+			// Register that the transaction has aborted
+			tr.statement[i] ="UPDATE coordtrans SET state = 3 "+ // ABORTED
+			"WHERE tid = :tid AND partec = :partec";
+			tr.statement[i].tid = transName;
+			tr.statement[i].partec = participants[i]
+		};
 	
-	queryRequest ="SELECT count(*) AS count FROM coordtrans WHERE tid= :tid " ;
-	queryRequest.tid = transName;
-	query@Database( queryRequest )( queryResult );
+		scope (abortAllTrans)
+		{
+			install
+			(
+				SQLException => println@Console("Impossibile sql abortall coord ")(),
+				IOException => println@Console("DB non raggiungibile quindi non posso decidere per "+transName)()
+			);
+			executeTransaction@Database(tr)(ret)
+		};
+		undef(tr);
+	
+		// Ask all participants to abort the transaction
+		println@Console("Begin concurrent abort "+transName)();
+		req.tid = transName;
+		req.count=#participants-1;
+		spawnAbort@Self(req)();
 		
-	serverfail=queryResult.row.count;
+		queryRequest ="SELECT count(*) AS count FROM coordtrans WHERE tid= :tid " ;
+		queryRequest.tid = transName;
+		query@Database( queryRequest )( queryResult );
+			
+		serverfail=queryResult.row.count
+	};
         
 	println@Console("----> Transaction "+transName+" aborted! Errors: "+serverfail+"<----")()
 }
@@ -514,6 +535,14 @@ define checkCID
 	}
 }
 
+define checkInterrupt{
+	// transName must be defined
+	if (is_defined(global.openTrans.(transName).interrupt))
+	{
+		abortAll;
+		throw (InterruptedException)
+	}
+}
 
 /*
 ==================================================================================================
@@ -526,14 +555,40 @@ define checkCID
 
 main 
 {	
+	[timeout(msg)]
+	{
+		println@Console("Procedura timeout...")();
+		transName = msg;
+		if(is_defined(global.openTrans.(transName)) )
+		{
+			println@Console("Timeout su "+transName+"!")();
+			synchronized(transName)
+			{
+				global.openTrans.(transName).interrupt = true
+			};
+			showDBS;
+			abortAll;
+			showDBS
+		}
+	}
+
 	[book(seatRequest)(response)  //Coordinator
 	{	
+		install( default => 
+			println@Console( "This is the recovery activity for book" )()
+		);
+		
+		//throw(InterruptedException);
 		synchronized (id)
 		{
 			transName = serverName+(++global.id) // TODO leggere il numero di transazione dal db
 		};
 		transInfo.tid = transName;
 		transInfo.coordLocation = myLocation;
+		
+		timeoutReq = 10000; // timeout after a minute
+		timeoutReq.message = transName;
+		setNextTimeout@Time(timeoutReq);
 		
 		global.openTrans.(transName) << transInfo;
 		global.openTrans.(transName).seatRequest << seatRequest;
@@ -551,6 +606,8 @@ main
 		println@Console("\tCon receipt "+response.receipt)();
 		println@Console("\tCon receiptHash "+global.openTrans.(transName).receiptHash)();
 		participants -> global.openTrans.(transName).participant; 
+		
+		sleep@Time(3000)();
 		
 		// Request lock-ins
 		req.tid = transName;
@@ -582,12 +639,13 @@ main
 	}]
 	{	
 		undef(global.openTrans.(transName));
-		showDBS
+		showDBS;
+		println@Console("Forse è andato tutto bene...")()
 	}
+	
 	
 	[spawnReqLock(tc)()  //Coordinator
 	{
-	
 		if ( tc.count >= 0 )
 		{
 			{
@@ -959,4 +1017,11 @@ main
 			seatList.seat[i].flight = row.flight
 		}
 	}]
+	
+	[getDecision(tid)(answer)
+	{
+		println@Console("Get decision TODO")();
+		answer = false
+	}]
+		
 }

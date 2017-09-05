@@ -377,8 +377,8 @@ define doCommit
 	tr.statement[1] =    "DELETE FROM trans WHERE tid= :tid";
 	tr.statement[1].tid = transName;
 	
-	tr.statement[2] =    "DELETE FROM transreg WHERE tid= :tid";
-	tr.statement[2].tid = transName;
+	/*tr.statement[2] =    "DELETE FROM transreg WHERE tid= :tid";
+	tr.statement[2].tid = transName;*/
 	
 	install // scope main
 	(
@@ -723,7 +723,7 @@ main
 			install
 			(
 				MissingCID => answer = false;
-				println@Console("Received request for a transaction without cid!")()
+				println@Console("Received request for "+transName+" without cid!")()
 			);
 			receivedCID = tReq.cid;
 			checkCID;
