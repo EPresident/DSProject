@@ -1,6 +1,8 @@
 include "interfacce.iol"
 include "console.iol"
 include "time.iol"
+include "string_utils.iol"
+include "message_digest.iol"
 
 outputPort FlightBookingService {
   Location: "socket://localhost:8001"
@@ -28,11 +30,23 @@ define retry
             request.lserv[1].seat[0].flightID="AZ4556";
             request.lserv[1].seat[0].number=44;
             println@Console(request)();
+			
+			getAvailableSeats@FlightBookingService()(seatList);
+			valueToPrettyString@StringUtils(seatList)(str);
+			println@Console("Il coordinatore ha i posti "+str)();
+			
             book@FlightBookingService(request)(response);
             if(response.success)
 			{
 				println@Console("Successo! Ricevuta: "+response.receipt)();
 				sleep@Time(2000)();
+				
+				md5@MessageDigest(response.receipt)(hash);
+				getReservedSeats@FlightBookingService(hash)(seatList);
+				valueToPrettyString@StringUtils(seatList)(str);
+				println@Console("Ho riservato dal coordinatore i posti "+str)();
+				sleep@Time(1000)();
+				
 				println@Console("Annullo la transazione")();
 				request.lserv[0].seat[0].receiptForUndo=response.receipt;
 				request.lserv[0].seat[1].receiptForUndo=response.receipt;

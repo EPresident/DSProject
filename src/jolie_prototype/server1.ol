@@ -380,7 +380,7 @@ define doCommit
 	tr.statement[2] =    "DELETE FROM transreg WHERE tid= :tid";
 	tr.statement[2].tid = transName;
 	
-	install 
+	install // scope main
 	(
 		IOException => println@Console( "Database non disponibile quindi non posso finalizzare il commit locale e devo propagare l'eccezione al coordinatore in modo che mi ricontatti quando sarà possibile")();
 		answer = false,
@@ -397,7 +397,6 @@ define doCommit
 
 define coordinatorRecovery
 {
-	//showDBS;
 	// Look for leftover transactions
 	// prefix cr_ is to avoid variable clashes with abort procedure
 	println@Console("\t\t---COORDINATOR RECOVERY---")();
@@ -545,7 +544,12 @@ main
 			md5@MessageDigest(response.receipt)(global.openTrans.(transName).receiptHash)
 		};	
 
-		println@Console("\nAperta transazione "+transName)();
+		println@Console("========================================================================")();
+		println@Console("========================================================================")();
+		println@Console("========================================================================")();
+		println@Console("Aperta transazione "+transName)();
+		println@Console("\tCon receipt "+response.receipt)();
+		println@Console("\tCon receiptHash "+global.openTrans.(transName).receiptHash)();
 		participants -> global.openTrans.(transName).participant; 
 		
 		// Request lock-ins
@@ -568,8 +572,7 @@ main
 		if(allCanCommit==true)
 		{
 			finalizeCommit;
-			response.success = true;
-			getRandomUUID@StringUtils()(response.receipt)
+			response.success = true
 		}
 		else
 		{
@@ -674,7 +677,9 @@ main
 					tr.statement[i].newstate = 0;
 					tr.statement[i].oldstate = 1;
 					tr.statement[i].newhash = "";
-					md5@MessageDigest(lockRequest.seat[i].receiptForUndo)(tr.statement[i].hash)
+					md5@MessageDigest(lockRequest.seat[i].receiptForUndo)(tr.statement[i].hash);
+					println@Console("------>"+lockRequest.seat[i].receiptForUndo)();
+					println@Console("------>"+tr.statement[i].hash)()
 				}else{  //prenotazione
 					println@Console("Richiesta prenotazione")();
 					tr.statement[i].newstate = 1;
@@ -929,9 +934,23 @@ main
 	//==================================================================================================
 	
 	// Get the list of free seats
-	[getAvailableSeats(flight)(seatList)
+	[getAvailableSeats()(seatList)
 	{
 		queryRequest =  "SELECT seat, flight FROM seat WHERE state = 0" ;
+		query@Database( queryRequest )( queryResult );
+		for(row in queryResult.row)
+		{
+			i = #seatList.seat;
+			seatList.seat[i] = row.seat;
+			seatList.seat[i].flight = row.flight
+		}
+	}]
+	
+	// Get the list of seats reserved to a specific receiptHash
+	[getReservedSeats(hash)(seatList)
+	{
+		queryRequest =  "SELECT seat, flight FROM seat WHERE hash = :hash" ;
+		queryRequest.hash = hash;
 		query@Database( queryRequest )( queryResult );
 		for(row in queryResult.row)
 		{

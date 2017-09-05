@@ -934,9 +934,23 @@ main
 	//==================================================================================================
 	
 	// Get the list of free seats
-	[getAvailableSeats(flight)(seatList)
+	[getAvailableSeats()(seatList)
 	{
 		queryRequest =  "SELECT seat, flight FROM seat WHERE state = 0" ;
+		query@Database( queryRequest )( queryResult );
+		for(row in queryResult.row)
+		{
+			i = #seatList.seat;
+			seatList.seat[i] = row.seat;
+			seatList.seat[i].flight = row.flight
+		}
+	}]
+	
+	// Get the list of seats reserved to a specific receiptHash
+	[getReservedSeats(hash)(seatList)
+	{
+		queryRequest =  "SELECT seat, flight FROM seat WHERE hash = :hash" ;
+		queryRequest.hash = hash;
 		query@Database( queryRequest )( queryResult );
 		for(row in queryResult.row)
 		{

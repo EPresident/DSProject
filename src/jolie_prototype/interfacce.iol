@@ -59,7 +59,8 @@ interface FlightBookingInterface{
 		canCommit(transRequest)(bool),
 		doCommit(transRequest)(bool),
 		abort(transRequest)(void),
-		getAvailableSeats(string)(seatResp)
+		getAvailableSeats(void)(seatResp),
+		getReservedSeats(string)(seatResp)
 }
 
 interface Coordinator{
