@@ -57,10 +57,10 @@ type tidcount: void{
 
 interface Spawn {
   RequestResponse:
-    spawnCanCommit( tidcount )( bool ),
+    spawnCanCommit( tidcount )( bool ) throws InterruptedException,
     spawnDoCommit( tidcount )( void ),
     spawnAbort( tidcount )( void ),
-    spawnReqLock( tidcount )( void )
+    spawnReqLock( tidcount )( void ) throws InterruptedException
 }
 
 outputPort Self {
@@ -236,13 +236,7 @@ init
 	};
 		
 	coordinatorRecovery;
-	transactionRecovery;
-	install( default => 
-			println@Console( "This is the recovery activity for book" )(),
-			this => 
-			println@Console( "This is the recovery activity for book" )()
-		)
-
+	transactionRecovery
 }
 
 /*
@@ -584,9 +578,8 @@ define checkCID
 
 define checkInterrupt{
 	// transName must be defined
-	if (is_defined(global.openTrans.(transName).interrupt))
+	if (global.openTrans.(transName).interrupt)
 	{
-		abortAll;
 		throw (InterruptedException)
 	}
 }
@@ -604,25 +597,40 @@ main
 {	
 	[timeout(msg)]
 	{
-		println@Console("Procedura timeout...")();
-		transName = msg;
+		//println@Console("Procedura timeout...")();
+		transName = msg.tid;
+		localLoc = msg.lloc;
 		if(is_defined(global.openTrans.(transName)) )
 		{
+			/*{
+				println@Console("Timeout su "+transName+"!")();
+				abortAll;
+				showDBS;
+				sleep@Time(5000)();
+				println@Console("Fatto abort timeout")()
+			}
+			|
+			{
+				println@Console("Esco")();
+				callExit@Runtime(localLoc)()
+			}*/
 			println@Console("Timeout su "+transName+"!")();
-			synchronized(transName)
+			synchronized(interrupted)
 			{
 				global.openTrans.(transName).interrupt = true
-			};
-			showDBS;
-			abortAll;
-			showDBS
+			}
 		}
 	}
 
 	[book(seatRequest)(response)  //Coordinator
 	{	
-		install( default => 
-			println@Console( "This is the recovery activity for book" )()
+		install
+		( 
+			default => 
+				println@Console( "This is the recovery activity for book" )(),
+			InterruptedException =>
+				println@Console("Booking interrupted by timeout!")();
+				abortAll
 		);
 
 		synchronized (id)
@@ -641,8 +649,9 @@ main
 			update@Database(ur)(ures)
 		};
 		
-		timeoutReq = 60000; // timeout after a minute
-		timeoutReq.message = transName;
+		timeoutReq = 4000; // timeout after a minute
+		timeoutReq.message.tid = transName;
+		getLocalLocation@Runtime()(timeoutReq.message.lloc);
 		setNextTimeout@Time(timeoutReq);
 		
 		global.openTrans.(transName) << transInfo;
@@ -714,10 +723,11 @@ main
 	
 	[spawnReqLock(tc)()  //Coordinator
 	{
+		transName = tc.tid;
+		checkInterrupt;
 		if ( tc.count >= 0 )
 		{
 			{
-				transName = tc.tid;
 				participants -> global.openTrans.(transName).participant;
 				// send lock-in request to participant
 				transInfo.tid = transName;
@@ -877,11 +887,12 @@ main
 	
 	[spawnCanCommit(tc)(resp)  //Coordinator  // IMPROVE gestire + velocemente l'abort
 	{
+		transName = tc.tid;
+		checkInterrupt;
 		if ( tc.count >= 0 )
 		{
 			{
 				{
-				transName = tc.tid;
 				participants -> global.openTrans.(transName).participant;
 				OtherServer.location = participants[tc.count];
 				println@Console("Chiedo canCommit a "+OtherServer.location  )();
