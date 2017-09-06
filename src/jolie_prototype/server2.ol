@@ -175,6 +175,16 @@ init
 		update@Database( updateRequest )( ret )
 	};
 	
+	scope ( createCounter ) 
+	{
+		install ( SQLException => println@Console("Counter already there")() );
+		updateRequest =
+			" CREATE TABLE counter ( "+
+				" counter	INTEGER, "+
+				" PRIMARY KEY(counter))";
+		update@Database( updateRequest )( ret )
+	};
+	
 	//per ora creo i voli se non presenti
 	
 	scope ( v1 ) 
@@ -349,6 +359,12 @@ define showDBS
 	qr = "SELECT * FROM transreg";
 	query@Database(qr)(qres);
 	valueToPrettyString@StringUtils(qres)(str);
+	println@Console(str+"\n")();
+	
+	println@Console("\t\t---COUNTER---")();
+	qr = "SELECT * FROM counter";
+	query@Database(qr)(qres);
+	valueToPrettyString@StringUtils(qres)(str);
 	println@Console(str+"\n")()
 }
 
@@ -462,6 +478,32 @@ define coordinatorRecovery
 		}
 	};
 	undef(OtherServer.location);
+	
+	// Recover transaction counter
+	cr_qr = "SELECT * FROM counter";
+	query@Database(cr_qr)(cr_qres);
+	
+	valueToPrettyString@StringUtils(cr_qres)(str);
+	println@Console(str)();
+	if(#cr_qres.row > 0)
+	{
+		println@Console("Counter c'e' gia'")();
+		synchronized(id)
+		{
+			global.id = cr_qres.row[0].counter
+		}
+	} else
+	{
+		// Counter table is empty
+		println@Console("Counter non c'e'")();
+		synchronized(id)
+		{
+			global.id = 0
+		};
+		cr_ur = "INSERT INTO counter(counter) VALUES (0)";
+		update@Database(cr_ur)(cr_ures)
+	};
+	
 	println@Console("\t\t--- Coordinator recovery done.---")()//;	
 }
 
@@ -582,14 +624,22 @@ main
 		install( default => 
 			println@Console( "This is the recovery activity for book" )()
 		);
-		
-		//throw(InterruptedException);
+
 		synchronized (id)
 		{
 			transName = serverName+(++global.id) // TODO leggere il numero di transazione dal db
 		};
 		transInfo.tid = transName;
 		transInfo.coordLocation = myLocation;
+		
+		scope(saveCounter)
+		{
+			install(SQLException => println@Console("Can't save counter!")());
+			// Save transaction counter
+			ur = "UPDATE counter SET counter = :ctr WHERE 0=0";
+			ur.ctr = global.id;
+			update@Database(ur)(ures)
+		};
 		
 		timeoutReq = 60000; // timeout after a minute
 		timeoutReq.message = transName;
@@ -658,7 +708,7 @@ main
 	}]
 	{	
 		undef(global.openTrans.(transName));
-		showDBS;
+		showDBS
 	}
 	
 	
