@@ -653,24 +653,27 @@ main
 		if(!msg.coordinator)
 		{
 			// Participant timeout
-			// TODO
 			transName = msg.tid;
-			println@Console(transName+": TIMEOUT!")();
-			//transactionRecovery
 			
 			qr = "SELECT committed FROM trans WHERE tid = :tid";
 			qr.tid = transName;
 			query@Database(qr)(qres);
-				
-			if(qres2.row[0].state == 1)
+			
+			if(#qres.row != 0)
 			{
-				// If I said I can commit, I can't go back until told otherwise
-				gDAttempts = 0; //# of getDecision attemps done so far
-				tryGetDecision
-			} else
-			{
-				abort
+				println@Console(transName+": TIMEOUT!")();
+				if(qres.row[0].state == 1)
+				{
+					// If I said I can commit, I can't go back until told otherwise
+					gDAttempts = 0; //# of getDecision attemps done so far
+					tryGetDecision
+				} else
+				{
+					abort;
+					showDBS
+				}
 			}
+			
 		}
 	}
 
