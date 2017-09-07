@@ -13,7 +13,10 @@ constants
 	serverName="Lefthansa",
 	dbname = "db2",
 	myLocation = "socket://localhost:8001",
-	locatSubServ= "socket://localhost:8004"
+	locatSubServ= "socket://localhost:8004",
+	participantTimeout = 60000,
+	coordinatorTimeout = 60000,
+	maxGDAttempts = 5
 }
 
 interface TimeoutInterface {
@@ -489,11 +492,8 @@ define coordinatorRecovery
 	cr_qr = "SELECT * FROM counter";
 	query@Database(cr_qr)(cr_qres);
 	
-	valueToPrettyString@StringUtils(cr_qres)(str);
-	println@Console(str)();
 	if(#cr_qres.row > 0)
 	{
-		println@Console("Counter c'e' gia'")();
 		synchronized(id)
 		{
 			global.id = cr_qres.row[0].counter
@@ -501,7 +501,6 @@ define coordinatorRecovery
 	} else
 	{
 		// Counter table is empty
-		println@Console("Counter non c'e'")();
 		synchronized(id)
 		{
 			global.id = 0
@@ -526,7 +525,7 @@ define tryGetDecision
 				pow@Math(powReq)(multiplier);
 				gDAttempts++;
 				println@Console("\tgetDecision error for"+transName)();
-				if(gDAttempts<3)
+				if(gDAttempts < maxGDAttempts)
 				{
 					sleep@Time(15000*multiplier)(); // Exponential backoff
 					tryGetDecision
@@ -655,7 +654,23 @@ main
 		{
 			// Participant timeout
 			// TODO
-			transactionRecovery
+			transName = msg.tid;
+			println@Console(transName+": TIMEOUT!")();
+			//transactionRecovery
+			
+			qr = "SELECT committed FROM trans WHERE tid = :tid";
+			qr.tid = transName;
+			query@Database(qr)(qres);
+				
+			if(qres2.row[0].state == 1)
+			{
+				// If I said I can commit, I can't go back until told otherwise
+				gDAttempts = 0; //# of getDecision attemps done so far
+				tryGetDecision
+			} else
+			{
+				abort
+			}
 		}
 	}
 
@@ -685,7 +700,7 @@ main
 			update@Database(ur)(ures)
 		};
 		
-		timeoutReq = 60000; // timeout after a minute
+		timeoutReq = coordinatorTimeout; // timeout after a minute
 		timeoutReq.message.tid = transName;
 		timeoutReq.message.coordinator = true;
 		setNextTimeout@Time(timeoutReq);
@@ -824,6 +839,12 @@ main
 	{
 		// Write a tentative version of the request
 		transName = lockRequest.transInfo.tid;
+		
+		// set timeout
+		timeoutReq = participantTimeout; // timeout after a minute
+		timeoutReq.message.tid = transName;
+		timeoutReq.message.coordinator = false;
+		setNextTimeout@Time(timeoutReq);
 		
 		scope(lock)
 		{		
