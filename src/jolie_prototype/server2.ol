@@ -267,8 +267,12 @@ define abortAll
 		{
 			install
 			(
-				SQLException => println@Console(transName+": impossibile sql abortall coord ")(), // TODO
-				IOException => println@Console(transName+": DB non raggiungibile quindi non posso decidere per "+transName)() // TODO
+				SQLException => 
+					println@Console(transName+": FATAL ERROR - SQL Exception during abortAll ")();
+					halt@Runtime(1)(),
+				IOException => 
+					println@Console(transName+": FATAL ERROR - DB unreachable")();
+					halt@Runtime(1)()
 			);
 			executeTransaction@Database(tr)(ret)
 		};
@@ -308,8 +312,12 @@ define finalizeCommit
 	{
 		install
 		(
-			SQLException => println@Console(transName+": impossibile sql fincomm coord ")(), // TODO
-			IOException => println@Console(transName+": DB non raggiungibile quindi non posso decidere per "+transName)()// TODO
+			SQLException => 
+				println@Console(transName+": FATAL ERROR - SQL Exception during commit finalization")();
+				halt@Runtime(1)(),
+			IOException => 
+				println@Console(transName+": FATAL ERROR - DB unreachable")();
+				halt@Runtime(1)()
 		);
 		executeTransaction@Database(tr)(ret)
 	};
@@ -421,11 +429,12 @@ define doCommit
 	
 	install // scope main
 	(
-		IOException => println@Console( transName+": database non disponibile quindi non posso finalizzare il commit locale e devo propagare l'eccezione al coordinatore in modo che mi ricontatti quando sarà possibile")(); // TODO
-		answer = false,
-		//throw al coordinatore
-		SQLException => println@Console( transName+": impossibile sql commit partec")(); // TODO
-		answer = false
+		IOException => 
+			println@Console( transName+": FATAL ERROR - DB unreachable")();
+			answer = false,
+		SQLException => 
+			println@Console( transName+": FATAL ERROR - SQL error in doCommit")();
+			answer = false
 	);
 	executeTransaction@Database( tr )( ret );
 	
@@ -606,11 +615,20 @@ define checkCID
 	}
 }
 
-define checkInterrupt{
+define checkInterrupt
+{
 	// transName must be defined
 	if (global.openTrans.(transName).interrupt)
 	{
 		throw (InterruptedException)
+	}
+}
+
+define interrupt
+{
+	synchronized(interrupted)
+	{
+		global.openTrans.(transName).interrupt = true
 	}
 }
 
@@ -631,10 +649,7 @@ main
 		if(msg.coordinator && is_defined(global.openTrans.(transName)) )
 		{
 			println@Console("Timeout for "+transName+"!")();
-			synchronized(interrupted)
-			{
-				global.openTrans.(transName).interrupt = true
-			}
+			interrupt
 		};
 		if(!msg.coordinator)
 		{
@@ -656,7 +671,7 @@ main
 
 		synchronized (id)
 		{
-			transName = serverName+(++global.id) // TODO leggere il numero di transazione dal db
+			transName = serverName+(++global.id)
 		};
 		transInfo.tid = transName;
 		transInfo.coordLocation = myLocation;
@@ -764,8 +779,11 @@ main
 				{
 					install 
 					(
-						SQLException => println@Console(transName+": partecipante duplicato quindi input non valido e abortisco la transazione")(), //aggiungere TODO
-						IOException => println@Console(transName+": database non disponibile quindi abortisco la transazione")() //aggiungere TODO
+						SQLException => println@Console(transName+": SQL error - possible duplicate participant. Aborting")();
+						interrupt;
+						throw (InterruptedException),
+						IOException => println@Console(transName+": FATAL ERROR - DB unreachable")();
+						halt@Runtime(1)()
 					);
 					
 					// Save participant in the database through a transaction
@@ -782,7 +800,9 @@ main
 					{
 						install 
 						(
-							IOException => println@Console(transName+": server "+participant[tc.count]+" non disponibile quindi abortisco al transazione")() //aggiungere TODO
+							IOException => println@Console(transName+": IO Error - server "+participant[tc.count]+" unresponsive. Aborting")();
+							interrupt;
+							throw (InterruptedException)
 						);
 						requestLockIn@OtherServer(lockRequest)
 						//println@Console("Ho contattato "+OtherServer.location)()
@@ -810,7 +830,8 @@ main
 			install 
 			(
 				SQLException => println@Console(transName+": esiste già un lock su seat,flight quindi fallisco")(), //TODO
-				IOException => println@Console(transName+": database non disponibile quindi non eseguo neinte e al cancommit risponderò no")() //TODO
+				IOException => 
+					println@Console(transName+": FATAL ERROR - DB unresponsive")()
 			);
 			
 			//verificare la semantica in caso di errori negli update della stessa transazione
@@ -882,11 +903,12 @@ main
 			(
 				IOException => 
 				{
-					println@Console(transName+": database non disponibile quindi non sapendo rispondo no")();
+					println@Console(transName+": FATAL ERROR - DB unresponsive")();
 					answer=false
 				},
-				//throw al coordinatore
-				SQLException => println@Console(transName+": impossibile sql cancommit partec")() // TODO
+				SQLException => 
+					println@Console(transName+": FATAL ERROR - SQL Error in canCommit")();
+					answer = false
 			);
 			
 			// mi impegno a non cancellare in caso di fault
@@ -1000,8 +1022,8 @@ main
 					{
 						install 
 						(
-							IOException => println@Console(transName+": database non disponibile quindi non posso rimuovere dal db e dovrò riprovare più tardi")(), // TODO
-							SQLException => println@Console(transName+": impossibile sql docom coord")() //TODO
+							IOException => println@Console(transName+": FATAL ERROR - DB unreachable")(),
+							SQLException => println@Console(transName+": FATAL ERROR - SQL Error in spawnDoCommit")()
 						);
 							update@Database( updateRequest )( ret )
 					}
@@ -1116,7 +1138,6 @@ main
 	
 	[getDecision(tid)(answer)
 	{
-		println@Console("Get decision TODO")();
 		qr = "SELECT state FROM coordtrans WHERE tid = :tid";
 		qr.tid = tid;
 		query@Database(qr)(qres);
