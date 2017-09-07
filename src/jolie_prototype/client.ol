@@ -4,6 +4,7 @@ include "time.iol"
 include "string_utils.iol"
 include "message_digest.iol"
 include "database.iol"
+include "math.iol"
 
 constants
 {
@@ -24,14 +25,8 @@ inputPort ClientService
 	Interfaces: ClientInterface, InternalClientInterface
 }
 
-/*inputPort InternalService
-{
-	Location: "local"
-	Interfaces: InternalClientInterface
-}*/
-
 //devo conoscere tutte le compagnie e poter chiedere tutti i voli e i posti disponibili per ogni volo
-//interface
+
 
 execution{concurrent}
 
@@ -90,18 +85,29 @@ define showDB
 
 define tryBooking
 {
-	install (
-		IOException => println@Console( "Server non disponibile retry"+(attemptsLeft--) )();
-		sleep@Time(3000)();
-		tryBooking,
-		InterruptedException => println@Console("Transaction timed out.")()
-	);
-		
-	if (attemptsLeft>0){
+	scope(try)
+	{
+		install (
+			IOException => 
+				println@Console( "Server unavailable; attempts left: "+(--attemptsLeft) )();
+				if (attemptsLeft>0)
+				{
+					powReq.exponent = maxAttempts-attemptsLeft;
+					powReq.base = 2;
+					pow@Math(powReq)(multiplier);	
+					println@Console("Waiting "+(1500*multiplier)+"ms")();
+					sleep@Time(1500*multiplier)();
+					tryBooking
+				} else
+				{
+					println@Console( "Server "+seatRequest.lserv[0].server+" unavailable.")()
+				},
+			InterruptedException => println@Console("Transaction timed out.")()
+		);
+			
 		// Take first server as coordinator...
 		FlightBookingService.location = seatRequest.lserv[0].server;
-	
-		//install(default => println@Console("Mi disp.")() );
+		
 		getAvailableSeats@FlightBookingService()(seatList);
 		valueToPrettyString@StringUtils(seatList)(str);
 		println@Console("Il coordinatore ha i posti "+str)();
@@ -136,16 +142,16 @@ define tryBooking
 		{
 			println@Console("Transazione fallita.")()
 		}
-        } else {
-            println@Console( "Server non disponibile")()
-        }
+
+	}
 }
 
 main 
 {
 	[book(seatRequest)]
 	{
-		attemptsLeft = 3;
+		maxAttempts = 4;
+		attemptsLeft = maxAttempts;
 		tryBooking;
 		showDB
 	}
