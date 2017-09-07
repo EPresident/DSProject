@@ -93,7 +93,8 @@ define tryBooking
 	install (
 		IOException => println@Console( "Server non disponibile retry"+(attemptsLeft--) )();
 		sleep@Time(3000)();
-		tryBooking
+		tryBooking,
+		InterruptedException => println@Console("Transaction timed out.")()
 	);
 		
 	if (attemptsLeft>0){

@@ -6,6 +6,7 @@ include "network_service.iol"
 include "time.iol"
 include "database.iol"
 include "message_digest.iol"
+include "math.iol"
 
 constants
 {
@@ -266,15 +267,15 @@ define abortAll
 		{
 			install
 			(
-				SQLException => println@Console("Impossibile sql abortall coord ")(),
-				IOException => println@Console("DB non raggiungibile quindi non posso decidere per "+transName)()
+				SQLException => println@Console(transName+": impossibile sql abortall coord ")(), // TODO
+				IOException => println@Console(transName+": DB non raggiungibile quindi non posso decidere per "+transName)() // TODO
 			);
 			executeTransaction@Database(tr)(ret)
 		};
 		undef(tr);
 	
 		// Ask all participants to abort the transaction
-		println@Console("Begin concurrent abort "+transName)();
+		println@Console("\t"+transName+": begin concurrent abort")();
 		req.tid = transName;
 		req.count=#participants-1;
 		spawnAbort@Self(req)();
@@ -286,19 +287,18 @@ define abortAll
 		serverfail=queryResult.row.count
 	};
         
-	println@Console("----> Transaction "+transName+" aborted! Errors: "+serverfail+"<----")()
+	println@Console(transName+": ABORTED! Errors: "+serverfail)()
 }
 
 define finalizeCommit
 {
 	// All participants can commit; proceed finalizing the commit phase by sending doCommit
-	println@Console("\n --------------------------------------------------------\n"+
-	"Tutti i "+#participants+ "partecipanti possono fare il commit.")();
+	println@Console("\t"+transName+": all "+#participants+ " participants can commit.")();
 	
 	// Register commit in progress  
 	for(i=0, i<#participants, i++)
 	{
-		tr.statement[i] ="UPDATE coordtrans SET state = 2 "+ // COMMITTED
+		tr.statement[i] ="UPDATE coordtrans SET state = 2 "+ // DO COMMIT
 		"WHERE tid = :tid AND partec = :partec";
 		tr.statement[i].tid = transName;
 		tr.statement[i].partec = participants[i]
@@ -308,8 +308,8 @@ define finalizeCommit
 	{
 		install
 		(
-			SQLException => println@Console("Impossibile sql fincomm coord ")(),
-			IOException => println@Console("DB non raggiungibile quindi non posso decidere per "+transName)()
+			SQLException => println@Console(transName+": impossibile sql fincomm coord ")(), // TODO
+			IOException => println@Console(transName+": DB non raggiungibile quindi non posso decidere per "+transName)()// TODO
 		);
 		executeTransaction@Database(tr)(ret)
 	};
@@ -326,40 +326,43 @@ define finalizeCommit
 	query@Database( queryRequest )( queryResult );
 	serverfail=queryResult.row.count;
 	
-	println@Console("----> Transaction "+transName+" was successful! Errors: "+serverfail+"<----")()
+	println@Console(transName+": TRANSACTION SUCCESSFUL! Unresponsive participants: "+serverfail)()
 }
 
 define showDBS
 {
-	println@Console("\n\t\t---SEAT---")();
+	dump = "\t\t=== Database Dump ===";
+	dump += "\n\t\t---SEAT---";
 	qr = "SELECT * FROM seat";
 	query@Database(qr)(qres);
 	valueToPrettyString@StringUtils(qres)(str);
-	println@Console(str)();
+	dump += "\n"+str;
 	
-	println@Console("\t\t---TRANS---")();
+	dump += "\n\t\t---TRANS---";
 	qr = "SELECT * FROM trans";
 	query@Database(qr)(qres);
 	valueToPrettyString@StringUtils(qres)(str);
-	println@Console(str)();
+	dump += "\n"+str;
 	
-	println@Console("\t\t---COORDTRANS---")();
+	dump += "\n"+"\t\t---COORDTRANS---";
 	qr = "SELECT * FROM coordTrans";
 	query@Database(qr)(qres);
 	valueToPrettyString@StringUtils(qres)(str);
-	println@Console(str+"\n")();
+	dump += "\n"+str;
 	
-	println@Console("\t\t---TRANSREG---")();
+	dump += "\n"+"\t\t---TRANSREG---";
 	qr = "SELECT * FROM transreg";
 	query@Database(qr)(qres);
 	valueToPrettyString@StringUtils(qres)(str);
-	println@Console(str+"\n")();
+	dump += "\n"+str;
 	
-	println@Console("\t\t---COUNTER---")();
+	dump += "\n"+"\t\t---COUNTER---";
 	qr = "SELECT * FROM counter";
 	query@Database(qr)(qres);
 	valueToPrettyString@StringUtils(qres)(str);
-	println@Console(str+"\n")()
+	dump += "\n"+str+"\n";
+	
+	println@Console(dump)()
 }
 
 define showInternalState
@@ -418,17 +421,17 @@ define doCommit
 	
 	install // scope main
 	(
-		IOException => println@Console( "Database non disponibile quindi non posso finalizzare il commit locale e devo propagare l'eccezione al coordinatore in modo che mi ricontatti quando sarà possibile")();
+		IOException => println@Console( transName+": database non disponibile quindi non posso finalizzare il commit locale e devo propagare l'eccezione al coordinatore in modo che mi ricontatti quando sarà possibile")(); // TODO
 		answer = false,
 		//throw al coordinatore
-		SQLException => println@Console( "Impossibile sql commit partec")();
+		SQLException => println@Console( transName+": impossibile sql commit partec")(); // TODO
 		answer = false
 	);
 	executeTransaction@Database( tr )( ret );
 	
 	answer = true; //rimuovere RR
 	
-	println@Console("----> Commit sulla transazione "+tid+"! <----")()
+	println@Console(transName+": COMMIT!")()
 }
 
 define coordinatorRecovery
@@ -501,6 +504,46 @@ define coordinatorRecovery
 	println@Console("\t\t--- Coordinator recovery done.---")()//;	
 }
 
+define tryGetDecision
+{
+	// Must be called inside transactionRecovery
+	scope(getDecision)
+	{
+		install
+		(
+			default =>
+				powReq.exponent = gDAttempts;
+				powReq.base = 2;
+				pow@Math(powReq)(multiplier);
+				gDAttempts++;
+				println@Console("\tgetDecision error for"+transName)();
+				if(gDAttempts<3)
+				{
+					sleep@Time(15000*multiplier)(); // Exponential backoff
+					tryGetDecision
+				} else
+				{
+					println@Console("\tERROR! can't getDecision for "+transName)()
+				}
+		);
+		println@Console("\tGet decision for "+transName+"...")();
+		Coordinator.location = row.coord;
+		getDecision@Coordinator(row.tid)(doCommit);
+		
+		if ( doCommit )
+		{
+			// do commit
+			println@Console("\t...committing "+transName)();
+			doCommit
+		} else
+		{
+			// abort
+			println@Console("\t...aborting "+transName)();
+			abort
+		}
+	}
+}
+
 define transactionRecovery
 {
 	println@Console("\t\t---PARTICIPANT RECOVERY---")();
@@ -512,29 +555,16 @@ define transactionRecovery
 	{
 		// If modifications were ready to commit, ask the coordinator for the decision 
 		// Else, wait for a possible canCommit, then abort
-		qr = "SELECT state FROM trans WHERE tid = :tid";
+		transName = row.tid;
+		
+		qr = "SELECT committed FROM trans WHERE tid = :tid";
 		qr.tid = row.tid;
 		query@Database(qr)(qres2);
 		
 		if(qres2.row[0].state == 1)
 		{
-			println@Console("Get decision for "+transName+"...")();
-			Coordinator.location = row.coord;
-			getDecision@Coordinator(row.tid)(doCommit);
-			
-			transName = row.tid;
-			if ( doCommit )
-			{
-				// do commit
-				println@Console("\t...committing "+transName)();
-				doCommit
-			} else
-			{
-				// abort
-				println@Console("\t...aborting "+transName)();
-				abort
-			}
-			
+			gDAttempts = 0; //# of getDecision attemps done so far
+			tryGetDecision
 		} else
 		{
 			// wait for canCommit; if it doesn't arrive, abort
@@ -597,28 +627,20 @@ main
 {	
 	[timeout(msg)]
 	{
-		//println@Console("Procedura timeout...")();
 		transName = msg.tid;
-		localLoc = msg.lloc;
-		if(is_defined(global.openTrans.(transName)) )
+		if(msg.coordinator && is_defined(global.openTrans.(transName)) )
 		{
-			/*{
-				println@Console("Timeout su "+transName+"!")();
-				abortAll;
-				showDBS;
-				sleep@Time(5000)();
-				println@Console("Fatto abort timeout")()
-			}
-			|
-			{
-				println@Console("Esco")();
-				callExit@Runtime(localLoc)()
-			}*/
-			println@Console("Timeout su "+transName+"!")();
+			println@Console("Timeout for "+transName+"!")();
 			synchronized(interrupted)
 			{
 				global.openTrans.(transName).interrupt = true
 			}
+		};
+		if(!msg.coordinator)
+		{
+			// Participant timeout
+			// TODO
+			transactionRecovery
 		}
 	}
 
@@ -626,11 +648,10 @@ main
 	{	
 		install
 		( 
-			default => 
-				println@Console( "This is the recovery activity for book" )(),
 			InterruptedException =>
-				println@Console("Booking interrupted by timeout!")();
-				abortAll
+				println@Console(transName+" interrupted by timeout!")();
+				abortAll;
+				throw (InterruptedException) // @ client
 		);
 
 		synchronized (id)
@@ -649,9 +670,9 @@ main
 			update@Database(ur)(ures)
 		};
 		
-		timeoutReq = 4000; // timeout after a minute
+		timeoutReq = 60000; // timeout after a minute
 		timeoutReq.message.tid = transName;
-		getLocalLocation@Runtime()(timeoutReq.message.lloc);
+		timeoutReq.message.coordinator = true;
 		setNextTimeout@Time(timeoutReq);
 		
 		global.openTrans.(transName) << transInfo;
@@ -662,16 +683,8 @@ main
 		{
 			md5@MessageDigest(response.receipt)(global.openTrans.(transName).receiptHash)
 		};	
-
-		println@Console("========================================================================")();
-		println@Console("========================================================================")();
-		println@Console("========================================================================")();
-		println@Console("Aperta transazione "+transName)();
-		println@Console("\tCon receipt "+response.receipt)();
-		println@Console("\tCon receiptHash "+global.openTrans.(transName).receiptHash)();
+		println@Console("=====> Opened transaction "+transName)();
 		participants -> global.openTrans.(transName).participant; 
-		
-		sleep@Time(3000)();
 		
 		// Request lock-ins
 		req.tid = transName;
@@ -682,25 +695,27 @@ main
 		sleep@Time(500)();
 		
 		// Done requesting locks, start 2 phase commit
-		println@Console("Partecipanti: "+#participants)();
-		println@Console("Begin concurrent cancommit "+transName)();
+		println@Console("\t"+transName+": "+#participants+" participants.")();
+		println@Console("\t"+transName+": begin concurrent canCommit.")();
 		
 		req.tid = transName;
 		req.count=#participants-1;
 		spawnCanCommit@Self(req)(allCanCommit);
                 
-		// Check if the client is still alive and well
-		Client.location = seatRequest.client;
-		println@Console("Client: "+Client.location)();
-		scope(clientCheck)
+		if(allCanCommit)
 		{
-			install
-			( 
-				default => println@Console("Client unresponsive! Aborting.")();
-				allCanCommit=false
-			);
-			canCommit@Client(response.receipt)(answer);
-			allCanCommit = allCanCommit && answer
+			// Check if the client is still alive and well
+			Client.location = seatRequest.client;
+			scope(clientCheck)
+			{
+				install
+				( 
+					default => println@Console(transName+": client unresponsive! Aborting.")();
+					allCanCommit=false
+				);
+				canCommit@Client(response.receipt)(answer);
+				allCanCommit = answer
+			}
 		};
 		
 		// if all can commit, proceed; else, abort.
@@ -749,8 +764,8 @@ main
 				{
 					install 
 					(
-						SQLException => println@Console("Partecipante duplicato quindi input non valido e abortisco la transazione")(), //aggiungere
-						IOException => println@Console( "Database non disponibile 	quindi abortisco la transazione")() //aggiungere
+						SQLException => println@Console(transName+": partecipante duplicato quindi input non valido e abortisco la transazione")(), //aggiungere TODO
+						IOException => println@Console(transName+": database non disponibile quindi abortisco la transazione")() //aggiungere TODO
 					);
 					
 					// Save participant in the database through a transaction
@@ -767,10 +782,10 @@ main
 					{
 						install 
 						(
-							IOException => println@Console( "Server "+participant[tc.count]+" non disponibile quindi abortisco al transazione")() //aggiungere
+							IOException => println@Console(transName+": server "+participant[tc.count]+" non disponibile quindi abortisco al transazione")() //aggiungere TODO
 						);
-						requestLockIn@OtherServer(lockRequest);
-						println@Console("Ho contattato "+OtherServer.location)()
+						requestLockIn@OtherServer(lockRequest)
+						//println@Console("Ho contattato "+OtherServer.location)()
 					}
 				}
 			}
@@ -794,8 +809,8 @@ main
 		{		
 			install 
 			(
-				SQLException => println@Console(" Esiste già un lock su seat,flight quindi fallisco")(),
-				IOException => println@Console( "Database non disponibile quindi non eseguo neinte e al cancommit risponderò no")()
+				SQLException => println@Console(transName+": esiste già un lock su seat,flight quindi fallisco")(), //TODO
+				IOException => println@Console(transName+": database non disponibile quindi non eseguo neinte e al cancommit risponderò no")() //TODO
 			);
 			
 			//verificare la semantica in caso di errori negli update della stessa transazione
@@ -808,16 +823,14 @@ main
 				tr.statement[i].seat = lockRequest.seat[i].number;
 				tr.statement[i].tid = transName;
 				if  ( is_defined( lockRequest.seat[i].receiptForUndo ) ){ //cancellazione
-					println@Console("Richiesto annullamento")();
+					println@Console("\t"+transName+": richiesto annullamento")();
 					tr.statement[i] = tr.statement[i]+" AND :hash = (SELECT hash FROM seat WHERE flight=:flight AND seat=:seat)";
 					tr.statement[i].newstate = 0;
 					tr.statement[i].oldstate = 1;
 					tr.statement[i].newhash = "";
-					md5@MessageDigest(lockRequest.seat[i].receiptForUndo)(tr.statement[i].hash);
-					println@Console("------>"+lockRequest.seat[i].receiptForUndo)();
-					println@Console("------>"+tr.statement[i].hash)()
+					md5@MessageDigest(lockRequest.seat[i].receiptForUndo)(tr.statement[i].hash)
 				}else{  //prenotazione
-					println@Console("Richiesta prenotazione")();
+					println@Console("\t"+transName+": richiesta prenotazione")();
 					tr.statement[i].newstate = 1;
 					tr.statement[i].oldstate = 0;
 					tr.statement[i].newhash = lockRequest.receiptHash
@@ -854,12 +867,12 @@ main
 			install
 			(
 				InvalidCID => answer = false;
-				println@Console("Received request with invalid cid!")()
+				println@Console(transName+": received request with invalid cid!")()
 			);
 			install
 			(
 				MissingCID => answer = false;
-				println@Console("Received request for a transaction without cid!")()
+				println@Console(transName+": received request for a transaction without cid!")()
 			);
 			receivedCID = tReq.cid;
 			checkCID;
@@ -867,9 +880,13 @@ main
 			// If the transaction ID is present in the database, then the seats are reserved correctly
 			install 
 			(
-				IOException => {println@Console( "Database non disponibile quindi non sapendo rispondo no")();answer=false},
+				IOException => 
+				{
+					println@Console(transName+": database non disponibile quindi non sapendo rispondo no")();
+					answer=false
+				},
 				//throw al coordinatore
-				SQLException => println@Console( "Impossibile sql cancommit partec")()
+				SQLException => println@Console(transName+": impossibile sql cancommit partec")() // TODO
 			);
 			
 			// mi impegno a non cancellare in caso di fault
@@ -895,7 +912,7 @@ main
 				{
 				participants -> global.openTrans.(transName).participant;
 				OtherServer.location = participants[tc.count];
-				println@Console("Chiedo canCommit a "+OtherServer.location  )();
+				//println@Console("Chiedo canCommit a "+OtherServer.location  )();
 					
 					scope(sendMsg)
 					{
@@ -903,14 +920,14 @@ main
 						(
 							IOException => 
 							{
-								println@Console( OtherServer.location+" non disponibile per canCommit" )(); 
+								println@Console(transName+": "+OtherServer.location+" non disponibile per canCommit" )(); 
 								resp1=false
 							}
 						);
 						tReq.tid = tc.tid;
 						tReq.cid = participants[tc.count].cid;
-						canCommit@OtherServer(tReq)(resp1);
-						println@Console(OtherServer.location+" risponde "+resp1)()
+						canCommit@OtherServer(tReq)(resp1)
+						//println@Console(OtherServer.location+" risponde "+resp1)()
 					}
                 }                                       
 				
@@ -941,12 +958,12 @@ main
 			install
 			(
 				InvalidCID => answer = false;
-				println@Console("Received request with invalid cid!")()
+				println@Console(transName+": received request with invalid cid!")()
 			);
 			install
 			(
 				MissingCID => answer = false;
-				println@Console("Received request for a transaction without cid!")()
+				println@Console(transName+": received request for a transaction without cid!")()
 			);
 			receivedCID = tReq.cid;
 			checkCID;
@@ -963,12 +980,12 @@ main
 				transName = tc.tid;
 				participants -> global.openTrans.(transName).participant;
 				OtherServer.location = participants[tc.count];
-				println@Console("Mando doCommit a "+OtherServer.location)();
+				//println@Console("Mando doCommit a "+OtherServer.location)();
 				scope ( docom )
 				{
 					install 
 					(
-						IOException => println@Console( "Server "+participant[tc.count]+" non disponibile quindi non rimuovo dal db e riprovo più tardi")()
+						IOException => println@Console(transName+": server "+participant[tc.count]+" non disponibile quindi non rimuovo dal db e riprovo più tardi")() // TODO
 					);
 					tReq.tid = tc.tid;
 					tReq.cid = participants[tc.count].cid;
@@ -983,8 +1000,8 @@ main
 					{
 						install 
 						(
-							IOException => println@Console( "Database non disponibile quindi non posso rimuovere dal db e dovrò riprovare più tardi")(),
-							SQLException => println@Console( "Impossibile sql docom coord")()
+							IOException => println@Console(transName+": database non disponibile quindi non posso rimuovere dal db e dovrò riprovare più tardi")(), // TODO
+							SQLException => println@Console(transName+": impossibile sql docom coord")() //TODO
 						);
 							update@Database( updateRequest )( ret )
 					}
@@ -1100,7 +1117,19 @@ main
 	[getDecision(tid)(answer)
 	{
 		println@Console("Get decision TODO")();
-		answer = false
+		qr = "SELECT state FROM coordtrans WHERE tid = :tid";
+		qr.tid = tid;
+		query@Database(qr)(qres);
+		
+		if(#qres.row == 1 && qres.row[0].state == 2)
+		{
+			// all participants can commit
+			answer = true
+		} else
+		{
+			answer = false
+		}
+		
 	}]
 		
 }
