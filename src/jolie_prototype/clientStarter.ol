@@ -56,6 +56,7 @@ main
 	request.lserv[1].server="socket://localhost:8000";
 	request.lserv[1].seat[0].flightID="AZ4556";
 	request.lserv[1].seat[0].number=44;
+	request.clientLocation = ClientService.location;
 	
 	book@ClientService(request);
 	println@Console("Fatto.")()

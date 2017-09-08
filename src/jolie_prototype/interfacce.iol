@@ -26,7 +26,8 @@ type seatRequest: void{
 			.receiptForUndo?: string
 		}
 	}
-	.client?: string
+	.clientLocation: string
+	.timeout?: int
 }
 
 type lockRequest: void{
@@ -77,6 +78,6 @@ interface FlightBookingInterface{
 interface Coordinator{
 	//OneWay: 
 	RequestResponse: 
-	getDecision(string)(bool),
+	getDecision(string)(bool) throws NotDecidedException,
 	book(seatRequest)(bookResponse) throws InterruptedException
 }
