@@ -703,7 +703,19 @@ main
 			update@Database(ur)(ures)
 		};
 		
-		timeoutReq = coordinatorTimeout; // timeout after a minute
+		// Setup transaction timeout
+		if(is_defined(seatRequest.timeout)) // check client requested timeout
+		{
+			requestedTimeout = seatRequest.timeout;
+			if(seatRequest.timeout>300000) // 5 minutes
+			{
+				requestedTimeout = 300000
+			};
+			timeoutReq = requestedTimeout
+		} else
+		{
+			timeoutReq = coordinatorTimeout // timeout after a minute
+		};
 		timeoutReq.message.tid = transName;
 		timeoutReq.message.coordinator = true;
 		setNextTimeout@Time(timeoutReq);
@@ -738,7 +750,7 @@ main
 		if(allCanCommit)
 		{
 			// Check if the client is still alive and well
-			Client.location = seatRequest.client;
+			Client.location = seatRequest.clientLocation;
 			scope(clientCheck)
 			{
 				install
@@ -1162,7 +1174,7 @@ main
 	
 	[getDecision(tid)(answer)
 	{
-		qr = "SELECT state FROM coordtrans WHERE tid = :tid";
+		qr = "SELECT DISTINCT state FROM coordtrans WHERE tid = :tid";
 		qr.tid = tid;
 		query@Database(qr)(qres);
 		
@@ -1170,9 +1182,14 @@ main
 		{
 			// all participants can commit
 			answer = true
+		} else if (#qres.row == 1 && qres.row[0].state == 3)
+		{
+			// abort
+			answer = false
 		} else
 		{
-			answer = false
+			// not decided yet
+			throw(NotDecidedException)
 		}
 		
 	}]

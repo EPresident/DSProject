@@ -112,7 +112,7 @@ define tryBooking
 		valueToPrettyString@StringUtils(seatList)(str);
 		println@Console("Il coordinatore ha i posti "+str)();
 		
-		seatRequest.client = myLocation;
+		seatRequest.clientLocation = myLocation;
 		book@FlightBookingService(seatRequest)(response);
 		
 		if(response.success)
