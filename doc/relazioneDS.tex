@@ -129,6 +129,8 @@ I nodi logici corrispondono a quelli fisici:
 
 L'implementazione è stata realizzata con il linguaggio \textit{service-oriented} Jolie. Ciò ha portato a notevoli semplificazioni nell'invio di messaggi e della parallelizzazione: infatti il sistema prevede un gran numero di invii di messaggi e scritture su database. La scelta ha anche portato ad alcune complicazioni nell'implementazione delle routine di recovery, a causa del flusso di esecuzione dei programmi in Jolie.
 
+I file \texttt{serverX.ol} implementano i vari server delle compagnie aeree, mentre il file \texttt{client.ol} implementa il servizio client di un'ipotetica agenzia di viaggi. Il file \texttt{clientStarter.ol} fa da veci ad un'ipotetica applicazione utente dell'agenzia, che dovrebbe far partire la prenotazione interfacciandosi col servizio client.
+
 \subsection{Server}
 % Server
 %	Operazioni
@@ -290,6 +292,12 @@ Si noti che, in mancanza di un'applicazione per l'utente finale, le prenotazioni
 \section{Conclusioni}
 %What has been done with respect to what has been promised in Chapters 1
 %and 2, and what is left out.
+
+Sono state implementate gran parte delle funzionalità richieste: il sistema è in grado di gestire prenotazioni, annullamenti e modifiche, di recuperare dai guasti ai server, di interrompere una prenotazione in caso di errori di comunicazione; non sono stati implementati i suggerimenti di alternative a posti richiesti ma non disponibili, ed il supporto alla gestione delle repliche e/o indirizzi multipli per i server.
+
+Non tutti i messaggi prevedono molteplici tentativi in caso di errore; alcuni causano semplicemente il sollevamento di un'eccezione e l'\textit{abort} della transazione in corso.
+
+Si è cercato di mantenere i server il più monolitici possibile per non disperdere il codice, tuttavia è stato necessario separare alcune parti per motivi di parallelizzazione o per far terminare prima la fase di \textit{init}. L'implementazione futura degli \textit{internal services} in Jolie potrebbe permettere un codice più compatto e leggibile.
 
 %============================================================================
 %============================================================================
