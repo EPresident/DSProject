@@ -1,6 +1,6 @@
-\documentclass[12pt]{article}
-\usepackage[latin1]{inputenc}
-\usepackage[italian]{babel}
+\documentclass[a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[english, italian]{babel}
 \usepackage{microtype} % tipografia
 \usepackage{graphicx}
 \usepackage[bookmarks=true,bookmarksopen=true,pdfhighlight=/I,pdfpagemode=UseOutlines]{hyperref} % hyper-links, questo va per ultimo
@@ -17,13 +17,13 @@
 
 \section{Introduzione}\label{sec:intro}
 
-Il problema proposto Ë quello di implementare un protocollo di transazioni distribuite, tramite il quale dei client possono prenotare in modo concorrente delle risorse disposte su pi˘ server.
+Il problema proposto √® quello di implementare un protocollo di transazioni distribuite, tramite il quale dei client possono prenotare in modo concorrente delle risorse disposte su pi√π server.
 
-\paragraph{Il pretesto} Ë quello di gestire un sistema di prenotazione di posti su voli aerei. Idealmente un'agenzia di viaggio (client) deve essere in grado di prenotare via internet una serie di posti su pi˘ voli di diverse compagnie. I server delle compagnie aeree mantengono la lista e lo stato dei voli e relativi posti. La prenotazione ha successo se e solo se \textit{tutti} i posti richiesti vengono prenotati. 
+\paragraph{Il pretesto} √® quello di gestire un sistema di prenotazione di posti su voli aerei. Idealmente un'agenzia di viaggio (client) deve essere in grado di prenotare via internet una serie di posti su pi√π voli di diverse compagnie. I server delle compagnie aeree mantengono la lista e lo stato dei voli e relativi posti. La prenotazione ha successo se e solo se \textit{tutti} i posti richiesti vengono prenotati. 
 
-Naturalmente si vuole evitare che le richieste di prenotazione interferiscono tra di loro (e soprattutto evitare che lo stesso posto venga prenotato pi˘ volte). %Nel caso in cui venga richiesto un posto che risulta occupato, il client potrebbe proporre un posto alternativo all'utente (se possibile).
+Naturalmente si vuole evitare che le richieste di prenotazione interferiscono tra di loro (e soprattutto evitare che lo stesso posto venga prenotato pi√π volte). %Nel caso in cui venga richiesto un posto che risulta occupato, il client potrebbe proporre un posto alternativo all'utente (se possibile).
 
-\paragraph{Una soluzione na\"ive} Ë quella di creare una transazione per ogni posto da prenotare, abortendo nel caso in cui una fallisca; tuttavia si vuole evitare l'annullamento di prenotazioni gi‡ effettuate.
+\paragraph{Una soluzione na\"ive} √® quella di creare una transazione per ogni posto da prenotare, abortendo nel caso in cui una fallisca; tuttavia si vuole evitare l'annullamento di prenotazioni gi√† effettuate.
 
 %============================================================================
 %============================================================================
@@ -35,26 +35,26 @@ Naturalmente si vuole evitare che le richieste di prenotazione interferiscono tr
 \begin{itemize}
 	\item Ogni agenzia deve poter richiedere i voli e i posti disponibili alle compagnie.
 	\item Ogni agenzia deve essere in grado di prenotare atomicamente una serie di posti su voli potenzialmente diversi. A fronte della lista di posti richiesti, viene richiesta la conferma o meno della prenotazione, eventualmente con delle proposte alternative a posti richiesti ma occupati.
-	\item Qualora un'agenzia non riesca ad ottenere uno o pi˘ posti richiesti, l'intera prenotazione deve essere annullata.
+	\item Qualora un'agenzia non riesca ad ottenere uno o pi√π posti richiesti, l'intera prenotazione deve essere annullata.
 	\item Qualora un client (agenzia) subisca guasti, la transazione va abortita.
 	\item Ci devono essere almeno cinque compagnie aeree.
 	\item Ogni server di ogni compagnia aerea mantiene una lista di voli, i quali hanno una serie di posti che possono essere liberi o prenotati.
-	\item Un posto in aereo non deve mai venire prenotato pi˘ volte.
-	\item Una volta confermata una prenotazione per un posto aereo, questa non deve essere pi˘ annullata dai server.
+	\item Un posto in aereo non deve mai venire prenotato pi√π volte.
+	\item Una volta confermata una prenotazione per un posto aereo, questa non deve essere pi√π annullata dai server.
 	\item L'agenzia deve essere in grado di disdire una prenotazione. Si astrae su eventuali termini per l'annullamento.
 \end{itemize}
 
 \subsection{Requisiti non funzionali}
 
 \begin{itemize}
-	\item Alta disponibilit‡, almeno $96\%$ (circa un giorno al mese di downtime).
+	\item Alta disponibilit√†, almeno $96\%$ (circa un giorno al mese di downtime).
 	\item Tempi di risposta contenuti: se una transazione non viene completata entro $N$ secondi, viene abortita (dal client).
-		\item Trasparenza rispetto alla replicazione. Una stessa compagnia puÚ avere pi˘ server replica; puÚ esporli tutti su indirizzi separati, oppure metterli sotto un singolo indirizzo e gestirli come pi˘ opportuno. Se vengono esposti pi˘ indirizzi, sar‡ il client a contattarne di diversi in caso di problemi.
+		\item Trasparenza rispetto alla replicazione. Una stessa compagnia pu√≤ avere pi√π server replica; pu√≤ esporli tutti su indirizzi separati, oppure metterli sotto un singolo indirizzo e gestirli come pi√π opportuno. Se vengono esposti pi√π indirizzi, sar√† il client a contattarne di diversi in caso di problemi.
 \end{itemize}
 \subsubsection{Fault Tolerance}
 \begin{itemize}
 	\item I server delle compagnie aeree devono cercare di mascherare i \textit{crash}. Un crash durante una transazione causa un \textit{abort}, uno dopo il \textit{commit} non deve causare perdite.
-	\item Omissioni di messaggi da parte dei server vengono visti dal client come un \textit{timeout}. Se sono disponibili indirizzi alternativi, il client puÚ decidere di contattarli in modo trasparente.
+	\item Omissioni di messaggi da parte dei server vengono visti dal client come un \textit{timeout}. Se sono disponibili indirizzi alternativi, il client pu√≤ decidere di contattarli in modo trasparente.
 	\item Omissioni o crash da parte del client portano la transazione ad essere abortita dai server.
 \end{itemize}
 
@@ -67,7 +67,7 @@ Naturalmente si vuole evitare che le richieste di prenotazione interferiscono tr
 \subsection{Architettura logica}
 % Componenti, funzioni, utenti
 
-L'architettura Ë di tipo \textit{client-server} a due \textit{tier}, con server \textit{peer} (dato che le risorse sono distribuite).
+L'architettura √® di tipo \textit{client-server} a due \textit{tier}, con server \textit{peer} (dato che le risorse sono distribuite).
 
 I \textbf{server} delle compagnie aeree mantengono la lista di voli e di posti a sedere, tendendo conto se quest'ultimi sono occupati o meno (e da chi). Forniscono la lista dei posti su richiesta. Possono eliminare una prenotazione effettuata da un client (su sua richiesta e solo sulle risorse gestite dal server).
 
@@ -86,25 +86,147 @@ Ogni server possiede una lista di aerei, ognuno identificato da un codice; ogni 
 		\label{fig:bookseq}
 \end{figure}
 
-\paragraph{Lista posti}La richiesta della lista di posti disponibili Ë una semplice interrogazione di tipo \textit{request-reply}: il server invia la lista di tutti i voli e relativi posti, compreso il loro stato (disponibile/occupato).
+\paragraph{Lista posti}La richiesta della lista di posti disponibili √® una semplice interrogazione di tipo \textit{request-reply}: il server invia la lista di tutti i voli e relativi posti, compreso il loro stato (disponibile/occupato).
+
+Ogni aereo √® identificato da una sigla (e.g. "AB0123") e ogni posto √® identificato da un numero crescente maggiore di zero, unitamente al relativo volo.
 
 \paragraph{Prenotazione}Come mostrato in figura \ref{fig:bookseq}, l'operazione di prenotazione consiste nel richiedere il \textit{lock} delle risorse ai server coinvolti, per poi inizializzare un \textit{two phase commit protocol}.
-Se le risorse non sono disponibili, allora il protocollo 2PC far‡ abortire la transazione.
+Se le risorse non sono disponibili, allora il protocollo 2PC far√† abortire la transazione.
 
+Tutte le parti coinvolte sfruttano dei file di \textit{log} o dei \textit{database} per eseguire il recupero dai guasti.
 
-Il ruolo di coordinatore della transazione puÚ essere assunto sia dal client che da un server (work in progress). 
+Pi√π in dettaglio, la prenotazione consiste delle seguenti fasi:
+\begin{itemize}
+	\item Uno dei server riceve la richiesta di prenotazione dal client, diventando coordinatore;
+	\item Il coordinatore invia ai server coinvolti nella transazione un messaggio \textit{requestLock}, a seguito di cui essi riservano le risorse richieste (se possibile);
+	\item Fatto questo, il coordinatore invia un \textit{canCommit} ai partecipanti, a cui ognuno risponde \textit{s√¨} qualora sia in grado di rendere permanenti le modifiche richieste, facendo inoltre in modo che queste non vadano perse in caso di guasti;
+	\item Una volta ricevuto \textit{s√¨} da tutti, il coordinatore invia \textit{doCommit} ai partecipanti, finalizzando la procedura;
+	\item Una volta inviati tutti i messaggi, il coordinatore ritorna una ricevuta al client, che verr√† richiesta per modificare o annullare la prenotazione.
+\end{itemize}
 
-Tutte le parti coinvolte sfruttano dei file di \textit{log} per eseguire il recupero dai guasti.
+\paragraph{Guasti e recupero} Qualora almeno un partecipante risponda \textit{no} al \textit{canCommit}, la transazione abortisce. Qualora ci sia qualche guasto (o timeout) prima che tutti i partecipanti rispondano \textit{s√¨}, la transazione abortisce. Oltre quel punto, i partecipanti si sono impegnati a mantenere le modifiche: dovesse qualcosa andare storto, saranno loro a recuperare le modifiche fatte fino a quel punto, e chiedere al coordinatore qualora abbia deciso di finalizzare la procedura o abortire.
 
 %============================================================================
 
 \subsection{Architettura fisica}
 % Nodi e piattaforme coinvolte, dove vengono piazzati
+I nodi logici corrispondono a quelli fisici:
+\begin{itemize}
+	\item Ogni server di ogni compagnia aerea sar√† su una macchina apposita connessa a Internet, situata dove pi√π opportuno;
+	\item Ogni client girer√† sulla macchina dell'agenzia di viaggio, connessa a Internet (quindi anche un semplice PC).
+\end{itemize}
+
+%============================================================================
+%============================================================================
+%============================================================================
+
+\section{Implementazione}
+%Details about the implementation: every choice about platforms, languages,
+%software/hardware, middlewares, which has not been decided in the require-
+%ments.
+%Important choices about implementation should be described here; e.g.,
+%peculiar data structures.
+
+L'implementazione √® stata realizzata con il linguaggio \textit{service-oriented} Jolie. Ci√≤ ha portato a notevoli semplificazioni nell'invio di messaggi e della parallelizzazione: infatti il sistema prevede un gran numero di invii di messaggi e scritture su database. La scelta ha anche portato ad alcune complicazioni nell'implementazione delle routine di recovery, a causa del flusso di esecuzione dei programmi in Jolie.
+
+\subsection{Server}
+% Server
+%	Operazioni
+%	Tabelle DB
+%	Tipi e interfacce
+\paragraph{Interfacce}I server espongono due interfacce:
+\begin{itemize}
+	\item \texttt{Coordinator} per le operazioni da coordinatore (apertura transazione, \texttt{getDecision})
+	\item \texttt{FlightBookingInterface} per le altre operazioni necessarie alle transazioni, e per le interrogazioni sui posti disponibili
+\end{itemize}
+Inoltre c'√® una terza interfaccia "privata", chiamata \texttt{Spawn}, che viene utilizzata dai server per generare chiamate parallele delle operazioni di \texttt{FlightBookingInterface}.
+
+\paragraph{Database}Ogni server ha un proprio database, su cui legge e scrive sulle seguenti tabelle:
+\begin{itemize}
+	\item \texttt{seat}, che contiene i dati sui posti a sedere, ovvero numero, codice aereo, libero/occupato, e hash della ricevuta se prenotato;
+	\item \texttt{trans}, usata per tenere traccia delle modifiche effettuate nel corso di una transazione, e qualora tali modifiche siano temporanee (\textit{tentative}) o meno;
+	\item \texttt{coordtrans}, usata dal coordinatore per tenere traccia dei partecipanti a ogni transazione, nonch√© il relativo stato (modifiche richieste, \textit{can commit}, \textit{committed}, \textit{abort});
+	\item \texttt{transreg}, usata da ogni server per tenere traccia delle transazioni a cui partecipa, e del relativo coordinatore;
+	\item \texttt{counter}, usata per salvare il contatore delle transazioni eseguite
+\end{itemize}
+
+%	Booking (coordinatore)
+\subsubsection{Prenotazione}
+L'operazione di prenotazione inizia con la richiesta da parte del client; essa deve contenere:
+\begin{itemize}
+	\item un array contenente
+	\begin{itemize}
+		\item l'indirizzo di un server (partecipante);
+		\item una lista di posti (numero e volo) da richiedere al server; opzionalmente a ogni posto di pu√≤ aggiungere la relativa ricevuta di prenotazione per rimuoverli da quest'ultima;
+	\end{itemize}
+	\item l'indirizzo del client che effettua la richiesta, in modo da poter essere contattato dal coordinatore per escludere guasti durante l'operazione;
+	\item opzionalmente un valore in millisecondi per il tempo massimo consentito per l'operazione (timeout).
+\end{itemize}
+
+Il server che riceve la richiesta diventa coordinatore della transazione, eseguendo le seguenti operazioni:
+\begin{itemize}
+	\item genera un nome per la transazione (nome server+contatore transazioni), detto anche \texttt{tid};
+	\item fa partire un timer, al termine del quale la transazione viene abortita qualora i partecipanti non siano pronti al \textit{commit};
+	\item genera una ricevuta per la transazione (una stringa) e la sua \textit{hash} MD5;
+	\item invia a ogni partecipante un messaggio \texttt{requestLockIn} in modo parallelo, tramite l'operazione \texttt{spawnReqLock};
+	\item dopo una breve attesa, per dar tempo ai partecipanti di processare il messaggio ricevuto, invia a ogni partecipante un messaggio \texttt{canCommit} in modo parallelo, tramite l'operazione \texttt{spawnCanCommit};
+	\item viene inviato \texttt{canCommit} anche al client, per verificare che sia ancora funzionante;
+	\item se tutti rispondono \textit{s√¨} a \texttt{canCommit}, il coordinatore invia ai partecipanti il \texttt{doCommit} (tramite \texttt{spawnDoCommit}) e ritorna al client la ricevuta, terminando la transazione con successo;
+	\item se almeno un partecipante (o il client) risponde \textit{no}, allora la transazione viene abortita (tramite \texttt{spawnAbort}, che invia parallelamente \texttt{abort}).
+\end{itemize}
+
+Qualora ci sia qualsiasi problema di comunicazione la transazione viene abortita, lanciando \texttt{InterruptedException} al client. 
+
+Si noti che, mentre il timer del coordinatore pu√≤ essere modificato dal client, ce n'√® anche uno per i partecipanti, che viene scelto dai rispettivi proprietari.
+
+%	lock
+\paragraph{Lock delle risorse}\texttt{spawnReqLock} invia a ogni partecipante, in modo parallelo, la richiesta di prenotare dei posti, passando inoltre una specie di \textit{session ID} (chiamato \texttt{cid}, o \textit{Coordinator ID}) per identificare i messaggi provenienti dal coordinatore; %(evitando quindi di accettare messaggi provenienti da altre fonti)
+assieme al \texttt{cid} viene inviata la hash della ricevuta, in modo che i partecipanti possano capire se una richiesta di annullamento √® legittima. %(cio√® contiene la ricevuta corretta)
+Infine viene registrata in \texttt{coordtrans} l'associazione fra \textit{Transaction ID} (\texttt{tid}), \texttt{cid} e partecipante, in modo che messaggi successivi relativi alla medesima transazione vengano inviati con il \texttt{cid} corretto.
+
+\texttt{requestLockIn} fa s√¨ che il partecipante registri in \texttt{trans} le modifiche richieste; se tutte le risorse sono disponibili viene aggiornata di conseguenza anche \texttt{seat}, altrimenti tutte le richieste di modifica vengono annullate. Viene aggiornata \texttt{transReg} con l'associazione tra \texttt{tid}, coordinatore e \texttt{cid}, facendo s√¨ che tutte le future richieste relative alla transazione \texttt{tid} debbano essere accompagnate da \texttt{cid}.
+Inoltre il partecipante fa partire un proprio timer, al termine del quale la transazione viene abortita e le risorse rilasciate.
+
+%	canCommit
+
+%	doCommit
+
+%	abort
+
+%	timeout
+
+%	Annullamento
+\subsubsection{Annullamento/modifica prenotazione}
+%	Recovery
+
+\subsection{Client}
+% Client
+%	Tabelle DB
+%	Tipi e interfacce
 
 
 %============================================================================
 %============================================================================
 %============================================================================
+
+\section{Validazione}
+%Check if requirements from Chapter 2 have been fullled. Quantitative tests
+%(simulations) and screenshots of the interfaces are put here.
+
+%============================================================================
+%============================================================================
+%============================================================================
+
+\section{Conclusioni}
+%What has been done with respect to what has been promised in Chapters 1
+%and 2, and what is left out.
+
+%============================================================================
+%============================================================================
+%============================================================================
+
+\appendix
+% codice, istruzioni di installazione, ... 
 
 \end{document}
 
