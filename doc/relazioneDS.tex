@@ -141,7 +141,7 @@ Un server deve poter assumere a due ruoli: quello di \textit{coordinatore} di un
 	\item \texttt{Coordinator} per le operazioni da coordinatore (apertura transazione, \texttt{getDecision})
 	\item \texttt{FlightBookingInterface} per le altre operazioni necessarie alle transazioni, e per le interrogazioni sui posti disponibili
 \end{itemize}
-Inoltre c'è una terza interfaccia "privata", chiamata \texttt{Spawn}, che viene utilizzata dai server per generare chiamate parallele delle operazioni di \texttt{FlightBookingInterface}.
+Inoltre ci sono due interfacce "private", chiamate \texttt{Spawn} e \texttt{TransRecovery}: la prima viene utilizzata dai server per generare chiamate parallele delle operazioni di \texttt{FlightBookingInterface}, mentre la seconda viene utilizzata per il recupero dai guasti.
 
 \paragraph{Database}Ogni server ha un proprio database, su cui legge e scrive sulle seguenti tabelle:
 \begin{itemize}
@@ -237,7 +237,17 @@ Quando un server viene avviato, vengono eseguite tre attività di recupero dai g
 % Client
 %	Tabelle DB
 %	Tipi e interfacce
+Il servizio client invia richieste di prenotazione (o modifica/annullamento) ai server, rimanendo disponibile a rispondere ai loro messaggi di controllo.
 
+\paragraph{Interfacce} Il servizio client espone due interfacce:
+\begin{itemize}
+	\item \texttt{ClientInterface} che permette ai server coordinatori di verificare se il client è ancora funzionante;
+	\item \texttt{InternalClientInterface} che permette all'(ipotetica) applicazione usata dall'utente di iniziare una prenotazione, per cui il servizio client farà da tramite con i server. 
+\end{itemize}
+
+Si noti che, in mancanza di un'applicazione per l'utente finale, le prenotazioni possono essere inizializzate tramite un semplice programmino Jolie con \texttt{execution\{single\}}, come ad esempio \texttt{clientStarter.ol}.
+
+\paragraph{Database} Il client mantiene una sola tabella \texttt{receipt}, in cui salva le ricevute delle prenotazioni effettuate.
 
 %============================================================================
 %============================================================================
