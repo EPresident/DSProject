@@ -32,7 +32,7 @@ Naturalmente si vuole evitare che le richieste di prenotazione interferiscono tr
 \section{Analisi}\label{sec:analisi}
 
 \subsection{Requisiti funzionali}
-\begin{itemize}
+\begin{enumerate}
 	\item Ogni agenzia deve poter richiedere i voli e i posti disponibili alle compagnie.
 	\item Ogni agenzia deve essere in grado di prenotare atomicamente una serie di posti su voli potenzialmente diversi. A fronte della lista di posti richiesti, viene richiesta la conferma o meno della prenotazione, eventualmente con delle proposte alternative a posti richiesti ma occupati.
 	\item Qualora un'agenzia non riesca ad ottenere uno o più posti richiesti, l'intera prenotazione deve essere annullata.
@@ -42,21 +42,21 @@ Naturalmente si vuole evitare che le richieste di prenotazione interferiscono tr
 	\item Un posto in aereo non deve mai venire prenotato più volte.
 	\item Una volta confermata una prenotazione per un posto aereo, questa non deve essere più annullata dai server.
 	\item L'agenzia deve essere in grado di disdire una prenotazione. Si astrae su eventuali termini per l'annullamento.
-\end{itemize}
+\end{enumerate}
 
 \subsection{Requisiti non funzionali}
 
-\begin{itemize}
+\begin{enumerate}
 	\item Alta disponibilità, almeno $96\%$ (circa un giorno al mese di downtime).
 	\item Tempi di risposta contenuti: se una transazione non viene completata entro $N$ secondi, viene abortita (dal client).
 		\item Trasparenza rispetto alla replicazione. Una stessa compagnia può avere più server replica; può esporli tutti su indirizzi separati, oppure metterli sotto un singolo indirizzo e gestirli come più opportuno. Se vengono esposti più indirizzi, sarà il client a contattarne di diversi in caso di problemi.
-\end{itemize}
+%\end{enumerate}
 \subsubsection{Fault Tolerance}
-\begin{itemize}
+%\begin{enumerate}
 	\item I server delle compagnie aeree devono cercare di mascherare i \textit{crash}. Un crash durante una transazione causa un \textit{abort}, uno dopo il \textit{commit} non deve causare perdite.
 	\item Omissioni di messaggi da parte dei server vengono visti dal client come un \textit{timeout}. Se sono disponibili indirizzi alternativi, il client può decidere di contattarli in modo trasparente.
 	\item Omissioni o crash da parte del client portano la transazione ad essere abortita dai server.
-\end{itemize}
+\end{enumerate}
 
 %============================================================================
 %============================================================================
@@ -256,6 +256,32 @@ Si noti che, in mancanza di un'applicazione per l'utente finale, le prenotazioni
 \section{Validazione}
 %Check if requirements from Chapter 2 have been fullled. Quantitative tests
 %(simulations) and screenshots of the interfaces are put here.
+
+\paragraph{Requisiti funzionali}
+\begin{enumerate}
+		\item Implementato da \texttt{getAvailableSeats}
+		\item Implementato da \texttt{book}, tranne la proposta di soluzioni alternative. Vista la mancanza di dati sui voli (destinazione, orari, ...) non ha molto senso proporre alternative; al massimo si sarebbe potuto proporre un posto sullo stesso volo, se disponibile.
+		\item Implementato in \texttt{book} e \texttt{requestLockIn}
+		\item Implementato dal messaggio \texttt{canCommit} inviato dal coordinatore al client
+		\item \`E sufficiente copiare uno dei file \texttt{serverX.ol} (dove X è un numero) e modificare alcune costanti (nome, locazione, ...) definite all'inizio del file
+		\item Implementato dalla tabella \texttt{seat}
+		\item Implementato da \texttt{requestLockIn}
+		\item L'annullamento/modifica di una prenotazione può avvenire solo presentando la relativa ricevuta, che solo il client conosce; il coordinatore genera la ricevuta ma non la salva, né la condivide con gli altri server (viene usata invece la hash)
+		\item Implementata dai campi opzionali nella richiesta per \texttt{book}
+		
+\end{enumerate}
+
+\paragraph{Requisiti non funzionali}
+\begin{enumerate}
+	\item La disponibilità dipende da chi  e come vengono gestiti i server.
+	\item I tempi di risposta massimi vengono influenzati dai \textit{timeout}, configurabili sia da client che server. Entrambi i timeout causano l'\textit{abort} (se la transazione non ha già superato la prima fase del 2PCP).
+	\item La trasparenza rispetto alla replicazione è delegata ai gestori dei server. Nell'implementazione attuale, il client suppone che ogni server abbia un solo indirizzo.
+	\paragraph{Fault tolerance}
+	\item Implementato dalle routine di \textit{recovery} e dalle varie operazioni dei server, sia da coordinatore che da partecipante.
+	\item Le omissioni vengono considerati errori di I/O, e causano l'interruzione della transazione (anche se non sono visti strettamente come \textit{timeout}, il client non se ne rende conto). Non sono previsti indirizzi alternativi.
+	\item Implementato da \texttt{book}, viene verificato lo stato del client prima del \textit{commit}.
+\end{enumerate}
+
 
 %============================================================================
 %============================================================================
