@@ -7,16 +7,16 @@ include "time.iol"
 include "database.iol"
 include "message_digest.iol"
 include "math.iol"
+include "interfaceservertransrecovery.iol"
 
 constants
 {
 	serverName="Lefthansa",
 	dbname = "db2",
 	myLocation = "socket://localhost:8001",
-	locatSubServ= "socket://localhost:8004",
 	participantTimeout = 60000,
 	coordinatorTimeout = 60000,
-	maxGDAttempts = 5
+	reset =false
 }
 
 interface TimeoutInterface {
@@ -67,16 +67,21 @@ interface Spawn {
     spawnReqLock( tidcount )( void ) throws InterruptedException
 }
 
-outputPort Self {
-  Location: locatSubServ
-  Protocol: sodep
-  Interfaces: Spawn
+outputPort Self{
+	Interfaces: Spawn
 }
 
-inputPort Spawn {
-  Location: locatSubServ
-  Protocol: sodep
-  Interfaces: Spawn
+inputPort Self {
+	Location: "local"
+	Interfaces: Spawn
+}
+
+outputPort LocalRecovery {
+    Interfaces: TransRecovery
+}
+ 
+embedded {
+    Jolie: "transrecovery.ol" in LocalRecovery
 }
 
 execution{concurrent}
@@ -84,6 +89,9 @@ execution{concurrent}
 init
 {
 	println@Console("Server "+serverName+" initialized.")();
+	
+        getLocalLocation@Runtime()( Self.location );
+        
 	global.id = 0;
 	
 	with ( connectionInfo ) 
@@ -102,34 +110,42 @@ init
 	//!!			TEST resetto il DB							  !!
 	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
 	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	scope ( resets ) 
-	{
+	if (reset) {
+            scope ( resets ) 
+            {
 		install ( SQLException => println@Console("seat già vuota")() ); 
 			updateRequest ="DROP TABLE seat";
 			update@Database( updateRequest )( ret )
-	};   
-	scope ( resett ) 
-	{
+            };   
+            scope ( resett ) 
+            {
 		install ( SQLException => println@Console("trans già vuota")() ); 
 			updateRequest ="DROP TABLE trans";
 			update@Database( updateRequest )( ret )
-	};  
-	scope ( resetc ) 
-	{
+            };  
+            scope ( resetc ) 
+            {
 		install ( SQLException => println@Console("coordTrans già vuota")() ); 
 			updateRequest ="DROP TABLE coordTrans";
 			update@Database( updateRequest )( ret )
-	};  
-    scope ( resettr ) 
-	{
+            };  
+            scope ( resettr ) 
+            {
 		install ( SQLException => println@Console("transReg già vuota")() ); 
 			updateRequest ="DROP TABLE transreg";
 			update@Database( updateRequest )( ret )
-	};   
+            };
+            
+            scope ( resetco ) 
+            {
+		install ( SQLException => println@Console("counter già vuota")() ); 
+			updateRequest ="DROP TABLE counter";
+			update@Database( updateRequest )( ret )
+            };   
 
     
-	scope ( createTables ) 
-	{
+            scope ( createTables ) 
+            {
 		install ( SQLException => println@Console("Seat table already there")() );
 		updateRequest =
 			" CREATE TABLE \"seat\" ( "+
@@ -139,9 +155,9 @@ init
 				" `hash` TEXT, "+
 				" PRIMARY KEY(flight,seat))";
 		update@Database( updateRequest )( ret )
-	};
-	scope ( createTablet ) 
-	{
+            };
+            scope ( createTablet ) 
+            {
 		install ( SQLException => println@Console("Transact table already there")() );
 		updateRequest =
 			" CREATE TABLE \"trans\" ( "+
@@ -154,9 +170,9 @@ init
 			" `committed` INTEGER NOT NULL DEFAULT 0, "+ // 0 = TENTATIVE, 1 = COMMITTED
 			" PRIMARY KEY(seat,flight))";
 		update@Database( updateRequest )( ret )
-	};
-	scope ( createTablec ) 
-	{
+            };
+            scope ( createTablec ) 
+            {
 		install ( SQLException => println@Console("Coord table already there")() );
 		updateRequest =
 			" CREATE TABLE \"coordtrans\" ( "+
@@ -166,9 +182,9 @@ init
 				" `state`	INTEGER NOT NULL DEFAULT 0, " + // 0=REQUESTED, 1=CAN COMMIT, 2=COMMITTED, 3=ABORT
 				" PRIMARY KEY(tid,partec))";
 		update@Database( updateRequest )( ret )
-	};
-	scope ( createTransReg ) 
-	{
+            };
+            scope ( createTransReg ) 
+            {
 		install ( SQLException => println@Console("Transaction registry already there")() );
 		updateRequest =
 			" CREATE TABLE \"transreg\" ( "+
@@ -177,70 +193,56 @@ init
 				" `cid`	TEXT, "+
 				" PRIMARY KEY(tid))";
 		update@Database( updateRequest )( ret )
-	};
+            };
 	
-	scope ( createCounter ) 
-	{
+            scope ( createCounter ) 
+            {
 		install ( SQLException => println@Console("Counter already there")() );
 		updateRequest =
 			" CREATE TABLE counter ( "+
 				" counter	INTEGER, "+
 				" PRIMARY KEY(counter))";
 		update@Database( updateRequest )( ret )
-	};
+            };
 	
-	//per ora creo i voli se non presenti
+            //per ora creo i voli se non presenti
 	
-	scope ( v1 ) 
-	{
-		install ( SQLException => println@Console("volo presente")() );
-		updateRequest =
+	
+            scope ( v1 ) 
+            {
+                install ( SQLException => println@Console("volo già presente")() );
+		for(i=0, i<12, i++)
+                {
+                    tr.statement[i] =
 			"INSERT INTO seat(flight, seat, state) " +
-			"VALUES (:flight, :seat, :state)";
-		updateRequest.flight = "AZ0123";
-		updateRequest.seat = 69;
-		updateRequest.state = 0;
-		update@Database( updateRequest )( ret )
-	};
-	
-	scope ( v2 ) 
-	{
-		install ( SQLException => println@Console("volo presente")() );
-		updateRequest =
+			"VALUES (:flight, :seat, :state )";
+                    tr.statement[i].flight = "AZ0123";
+                    tr.statement[i].seat = i+60;
+                    tr.statement[i].state = 0
+                };
+		executeTransaction@Database( tr )( ret )
+            };
+            undef(tr);
+            scope ( v2 ) 
+            {
+                install ( SQLException => println@Console("volo già presente")() );
+		for(i=0, i<10, i++)
+                {
+                    tr.statement[i] =
 			"INSERT INTO seat(flight, seat, state) " +
-			"VALUES (:flight, :seat, :state)";
-		updateRequest.flight = "AZ0123";
-		updateRequest.seat = 70;
-		updateRequest.state = 0;
-		update@Database( updateRequest )( ret )
-	};
-	
-	scope ( v3 ) 
-	{
-		install ( SQLException => println@Console("volo presente")() );        
-		updateRequest =
-			"INSERT INTO seat(flight, seat, state) " +
-			"VALUES (:flight, :seat, :state)";
-		updateRequest.flight = "AZ4556";
-		updateRequest.seat = 42;
-		updateRequest.state = 0;
-		update@Database( updateRequest )( ret )
-	};
-	
-	scope ( v4 ) 
-	{
-		install ( SQLException => println@Console("volo presente")() ); 
-		updateRequest =
-			"INSERT INTO seat(flight, seat, state) " +
-			"VALUES (:flight, :seat, :state)";
-		updateRequest.flight = "AZ4556";
-		updateRequest.seat = 44;
-		updateRequest.state = 0;
-		update@Database( updateRequest )( ret )
-	};
-		
-	coordinatorRecovery;
-	transactionRecovery
+			"VALUES (:flight, :seat, :state )";
+                    tr.statement[i].flight = "AZ4556";
+                    tr.statement[i].seat = i+40;
+                    tr.statement[i].state = 0
+                };
+		executeTransaction@Database( tr )( ret )
+            };
+            undef(tr)
+        };
+        
+	coordinatorRecovery@LocalRecovery(dbname);
+	recovery@LocalRecovery(dbname);
+	recoveryCount
 }
 
 /*
@@ -388,7 +390,8 @@ define abort
 	// Variable transName must be defined
 
 	//esegui transazione di abort per tid sul db
-	tr.statement[0] ="UPDATE seat SET state = 0, "+
+	tr.statement[0] ="UPDATE seat SET state = (SELECT trans.oldstate FROM trans "+
+		" WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid), "+
 		" hash = (SELECT trans.newhash FROM trans  "+
 		" WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid) "+
 		" WHERE EXISTS ( SELECT * FROM trans  "+
@@ -446,48 +449,8 @@ define doCommit
 	println@Console(transName+": COMMIT!")()
 }
 
-define coordinatorRecovery
+define recoveryCount
 {
-	// Look for leftover transactions
-	// prefix cr_ is to avoid variable clashes with abort procedure
-	println@Console("\t\t---COORDINATOR RECOVERY---")();
-	cr_qr = "SELECT tid, partec, cid FROM coordTrans " +
-	" WHERE state = 0 OR state = 1 OR state = 3";
-	query@Database(cr_qr)(cr_qres);
-	
-	for( cr_row in cr_qres.row )
-	{	
-		cr_deleteEntry = true;
-		if( cr_row.partec == myLocation )
-		{
-			println@Console("Mando abort a me stesso.")();
-			transName = cr_row.tid;
-			abort
-		} else
-		{
-			OtherServer.location = cr_row.partec;
-			tid = cr_row.tid;
-			println@Console("Mando abort a "+OtherServer.location)();
-			scope (cr_abortReq)
-			{
-				install(default => println@Console("Errore nell'abort, tengo la entry.")();
-					cr_deleteEntry = false);
-				tReq.tid = tid;
-				tReq.cid = cr_row.cid;
-				abort@OtherServer(tReq)()
-			}
-		};
-		
-		if( cr_deleteEntry )
-		{
-			cr_ur = "DELETE FROM coordTrans WHERE partec = :partec AND tid = :tid";
-			cr_ur.tid = cr_row.tid;
-			cr_ur.partec = cr_row.partec;
-			update@Database(cr_ur)(ret)
-		}
-	};
-	undef(OtherServer.location);
-	
 	// Recover transaction counter
 	cr_qr = "SELECT * FROM counter";
 	query@Database(cr_qr)(cr_qres);
@@ -509,87 +472,7 @@ define coordinatorRecovery
 		update@Database(cr_ur)(cr_ures)
 	};
 	
-	println@Console("\t\t--- Coordinator recovery done.---")()//;	
-}
-
-define tryGetDecision
-{
-	// Must be called inside transactionRecovery
-	scope(getDecision)
-	{
-		install
-		(
-			default =>
-				powReq.exponent = gDAttempts;
-				powReq.base = 2;
-				pow@Math(powReq)(multiplier);
-				gDAttempts++;
-				println@Console("\tgetDecision error for"+transName)();
-				if(gDAttempts < maxGDAttempts)
-				{
-					sleep@Time(15000*multiplier)(); // Exponential backoff
-					tryGetDecision
-				} else
-				{
-					println@Console("\tERROR! can't getDecision for "+transName)()
-				}
-		);
-		println@Console("\tGet decision for "+transName+"...")();
-		Coordinator.location = row.coord;
-		getDecision@Coordinator(row.tid)(doCommit);
-		
-		if ( doCommit )
-		{
-			// do commit
-			println@Console("\t...committing "+transName)();
-			doCommit
-		} else
-		{
-			// abort
-			println@Console("\t...aborting "+transName)();
-			abort
-		}
-	}
-}
-
-define transactionRecovery
-{
-	println@Console("\t\t---PARTICIPANT RECOVERY---")();
-	// Find open transactions
-	qr = "SELECT * FROM transreg";
-	query@Database(qr)(qres);
-	
-	for(row in qres.row)
-	{
-		// If modifications were ready to commit, ask the coordinator for the decision 
-		// Else, wait for a possible canCommit, then abort
-		transName = row.tid;
-		
-		qr = "SELECT committed FROM trans WHERE tid = :tid";
-		qr.tid = row.tid;
-		query@Database(qr)(qres2);
-		
-		if(qres2.row[0].state == 1)
-		{
-			gDAttempts = 0; //# of getDecision attemps done so far
-			tryGetDecision
-		} else
-		{
-			// wait for canCommit; if it doesn't arrive, abort
-			println@Console("Waiting for canCommit...")();
-			sleep@Time(1000)();
-			
-			// recycle previous query
-			query@Database(qr)(qres2);
-			
-			if(qres2.row[0].state != 1) // canCommit hasn't arrived
-			{
-				println@Console("\t...aborting "+transName)();
-				abort
-			}
-		}
-	};
-	println@Console("\t\t---Participant recovery done.---")()
+	println@Console("\t\t--- Transaction counter recovery done.---")()//;	
 }
 
 define checkCID
@@ -665,8 +548,11 @@ main
 				if(qres.row[0].state == 1)
 				{
 					// If I said I can commit, I can't go back until told otherwise
-					gDAttempts = 0; //# of getDecision attemps done so far
-					tryGetDecision
+                                        tac.att=0;//# of getDecision attemps done so far
+                                        tac.tid=transName;
+                                        tac.coordloc=row.coord;
+                                        tac.db=dbname;
+                                        tryGetDecision@LocalRecovery(tac)
 				} else
 				{
 					abort;
@@ -801,10 +687,9 @@ main
 				getRandomUUID@StringUtils()(lockRequest.cid); 
 				
 				// Register participants
-				i = #participants;
-				participants[i] = global.openTrans.(transName).seatRequest.lserv[tc.count].server;
-				participants[i].cid = lockRequest.cid;   
-					
+				participants[tc.count] = global.openTrans.(transName).seatRequest.lserv[tc.count].server;
+				participants[tc.count].cid = lockRequest.cid;   
+
 				scope (join) 
 				{
 					install 
@@ -904,6 +789,7 @@ main
 			tr.statement[#lockRequest.seat+1].tid = transName;  
 
 			tr.statement[#lockRequest.seat+2] = "INSERT INTO transreg(tid, coord, cid) VALUES (:tid, :coord, :cid) ";
+                            //" WHERE EXISTS (SELECT * FROM trans WHERE tid= :tid)";
 			tr.statement[#lockRequest.seat+2].tid = lockRequest.transInfo.tid;
 			tr.statement[#lockRequest.seat+2].coord = lockRequest.transInfo.coordLocation;
 			tr.statement[#lockRequest.seat+2].cid = lockRequest.cid;
@@ -949,6 +835,7 @@ main
 			
 			// mi impegno a non cancellare in caso di fault
 			tr.statement[0] ="UPDATE trans SET committed = 1 WHERE tid= :tid ";
+			tr.statement[0].tid=transName;
 			executeTransaction@Database( tr )( ret );
 			
 			// cerca sul db se è presente tid nell'elenco
@@ -1009,7 +896,7 @@ main
 	{
 		// esegui transazione di commit per tid sul db
 		transName=tReq.tid;
-		
+                //sleep@Time(5000)();
 		// Check if cid matches
 		scope(cidCheck)
 		{
@@ -1177,21 +1064,19 @@ main
 		qr = "SELECT DISTINCT state FROM coordtrans WHERE tid = :tid";
 		qr.tid = tid;
 		query@Database(qr)(qres);
-		
-		if(#qres.row == 1 && qres.row[0].state == 2)
+		if(qres.row[0].state == 2)
 		{
 			// all participants can commit
 			answer = true
-		} else if (#qres.row == 1 && qres.row[0].state == 3)
-		{
-			// abort
-			answer = false
-		} else
+		} else if (qres.row[0].state == 0)
 		{
 			// not decided yet
 			throw(NotDecidedException)
+		} else
+		{
+			// abort
+			answer = false
 		}
 		
 	}]
-		
 }

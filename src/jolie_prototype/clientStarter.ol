@@ -59,5 +59,19 @@ main
 	request.clientLocation = ClientService.location;
 	
 	book@ClientService(request);
-	println@Console("Fatto.")()
+	println@Console("Fatto1.")()
+	|
+        println@Console("Invio richiesta...")();
+	request2.lserv[0].server="socket://localhost:8001";
+	request2.lserv[0].seat[0].flightID="AZ0123";
+	request2.lserv[0].seat[0].number=63;
+	request2.lserv[0].seat[1].flightID="AZ0123";
+	request2.lserv[0].seat[1].number=64;
+	request2.lserv[1].server="socket://localhost:8000";
+	request2.lserv[1].seat[0].flightID="AZ4556";
+	request2.lserv[1].seat[0].number=42;
+	request2.clientLocation = ClientService.location;
+	
+	book@ClientService(request2);
+	println@Console("Fatto2.")()
 }
