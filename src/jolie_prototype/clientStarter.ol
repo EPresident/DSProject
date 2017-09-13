@@ -41,9 +41,9 @@ main
 {
 	println@Console("Sending request(1)...")();
 	request.lserv[0].server="socket://localhost:8001";
-	request.lserv[0].seat[0].flightID="AZ0123";
+	request.lserv[0].seat[0].flightID="AB0123";
 	request.lserv[0].seat[0].number=69;
-	request.lserv[0].seat[1].flightID="AZ0123";
+	request.lserv[0].seat[1].flightID="AB0123";
 	request.lserv[0].seat[1].number=70;
 	request.lserv[1].server="socket://localhost:8000";
 	request.lserv[1].seat[0].flightID="AZ4556";
@@ -55,9 +55,9 @@ main
 	|
         println@Console("Sending request(2)...")();
 	request2.lserv[0].server="socket://localhost:8001";
-	request2.lserv[0].seat[0].flightID="AZ0123";
+	request2.lserv[0].seat[0].flightID="AB0123";
 	request2.lserv[0].seat[0].number=63;
-	request2.lserv[0].seat[1].flightID="AZ0123";
+	request2.lserv[0].seat[1].flightID="AB0123";
 	request2.lserv[0].seat[1].number=64;
 	request2.lserv[1].server="socket://localhost:8000";
 	request2.lserv[1].seat[0].flightID="AZ4556";

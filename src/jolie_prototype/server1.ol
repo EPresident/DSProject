@@ -404,8 +404,12 @@ define abort
 	
 	install 
 	(
-		IOException => println@Console(transName+": FATAL ERROR - DB unreachable")(),
-		SQLException => println@Console(transName+": FATAL ERROR - SQL Exception during abort")()
+		IOException => 
+			println@Console(transName+": FATAL ERROR - DB unreachable")();
+			throw(IOException),
+		SQLException => 
+			println@Console(transName+": FATAL ERROR - SQL Exception during abort")();
+			throw(IOException)
 	);
 	executeTransaction@Database( tr )( ret );
 	
@@ -434,10 +438,12 @@ define doCommit
 	(
 		IOException => 
 			println@Console( transName+": FATAL ERROR - DB unreachable")();
-			answer = false,
+			answer = false;
+			throw(IOException),
 		SQLException => 
 			println@Console( transName+": FATAL ERROR - SQL error in doCommit")();
-			answer = false
+			answer = false;
+			throw(IOException)
 	);
 	executeTransaction@Database( tr )( ret );
 	
@@ -763,7 +769,7 @@ main
 				if  ( is_defined( lockRequest.seat[i].receiptForUndo ) )
 				{ 
 					// modify or undo booking
-					println@Console("\t"+transName+": undo requested")();
+					print@Console("\t"+transName+": undo requested")();
 					tr.statement[i] = tr.statement[i]+" AND :hash = (SELECT hash FROM seat WHERE flight=:flight AND seat=:seat)";
 					tr.statement[i].newstate = 0;
 					tr.statement[i].oldstate = 1;
@@ -771,11 +777,12 @@ main
 					md5@MessageDigest(lockRequest.seat[i].receiptForUndo)(tr.statement[i].hash)
 				}else
 				{  	// booking
-					println@Console("\t"+transName+": booking requested")();
+					print@Console("\t"+transName+": booking requested")();
 					tr.statement[i].newstate = 1;
 					tr.statement[i].oldstate = 0;
 					tr.statement[i].newhash = lockRequest.receiptHash
-				}
+				};
+				println@Console(" for seat "+lockRequest.seat[i].flightID+"-"+lockRequest.seat[i].number)()
 			};
 			// If some seats can't be locked, all are released
 			tr.statement[#lockRequest.seat] = "DELETE FROM trans WHERE tid= :tid AND :count <> (SELECT count(*) FROM trans WHERE tid= :tid) " ;
@@ -787,13 +794,14 @@ main
 			" WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid) ";
 			tr.statement[#lockRequest.seat+1].tid = transName;  
 
-			tr.statement[#lockRequest.seat+2] = "INSERT INTO transreg(tid, coord, cid) VALUES (:tid, :coord, :cid) ";
-			//+ " WHERE EXISTS (SELECT * FROM trans WHERE tid= :tid)";
+			tr.statement[#lockRequest.seat+2] = "INSERT INTO transreg(tid, coord, cid) SELECT :tid, :coord, :cid "+
+                            " WHERE EXISTS (SELECT * FROM trans WHERE tid= :tid)";
 			tr.statement[#lockRequest.seat+2].tid = lockRequest.transInfo.tid;
 			tr.statement[#lockRequest.seat+2].coord = lockRequest.transInfo.coordLocation;
 			tr.statement[#lockRequest.seat+2].cid = lockRequest.cid;
 			
 			executeTransaction@Database( tr )( ret )
+			//showDBS
 		}
 	}
 	
@@ -809,12 +817,14 @@ main
 			install
 			(
 				InvalidCID => answer = false;
-				println@Console(transName+": received request with invalid cid!")()
+				println@Console(transName+": received request with invalid cid!")();
+				println@Console("\t"+transName+": can commit -> "+answer)()
 			);
 			install
 			(
 				MissingCID => answer = false;
-				println@Console(transName+": received request for a transaction without cid!")()
+				println@Console(transName+": received request for a transaction without cid!")();
+				println@Console("\t"+transName+": can commit -> "+answer)()
 			);
 			receivedCID = tReq.cid;
 			checkCID;
@@ -825,11 +835,13 @@ main
 				IOException => 
 				{
 					println@Console(transName+": FATAL ERROR - DB unresponsive")();
-					answer=false
+					answer=false;
+					println@Console("\t"+transName+": can commit -> "+answer)()
 				},
 				SQLException => 
 					println@Console(transName+": FATAL ERROR - SQL Error in canCommit")();
-					answer = false
+					answer = false;
+					println@Console("\t"+transName+": can commit -> "+answer)()
 			);
 			
 			// Promising not to lose the changes even if faulty
@@ -842,7 +854,8 @@ main
 				"SELECT count(*) AS count FROM trans WHERE tid= :tid " ;
 			queryRequest.tid = transName;
 			query@Database( queryRequest )( queryResult );
-			answer = queryResult.row.count!=0
+			answer = queryResult.row.count!=0;
+			println@Console("\t"+transName+": can commit -> "+answer)()
 		}
 	}]
 	
@@ -930,6 +943,11 @@ main
 					tReq.tid = tc.tid;
 					tReq.cid = participants[tc.count].cid;
 					doCommit@OtherServer(tReq)(answ);
+					
+					if(answ==false)
+					{
+						throw(IOException)
+					};
 
 					// Remove participant from transaction		
 					updateRequest ="DELETE FROM coordtrans WHERE tid= :tid AND partec =:partec ";
@@ -968,11 +986,11 @@ main
 		{
 			install
 			(
-				InvalidCID => println@Console("Received request with invalid cid!")()
+				InvalidCID => println@Console(transName+":  request with invalid cid!")()
 			);
 			install
 			(
-				MissingCID => println@Console("Received request for a transaction without cid!")()
+				MissingCID => println@Console(transName+": received request for a transaction without cid!")()
 			);
 			receivedCID = tReq.cid;
 			checkCID;

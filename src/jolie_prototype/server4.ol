@@ -11,9 +11,9 @@ include "interfaceservertransrecovery.iol"
 
 constants
 {
-	serverName="Lefthansa",
-	dbname = "db2",
-	myLocation = "socket://localhost:8001",
+	serverName="FlyEmireits",
+	dbname = "db4",
+	myLocation = "socket://localhost:8003",
 	participantTimeout = 60000,
 	coordinatorTimeout = 60000,
 	reset = false // Debug switch - activates manual DB (re)generation
@@ -214,7 +214,7 @@ init
                     tr.statement[i] =
 			"INSERT INTO seat(flight, seat, state) " +
 			"VALUES (:flight, :seat, :state )";
-                    tr.statement[i].flight = "AB0123";
+                    tr.statement[i].flight = "AC0123";
                     tr.statement[i].seat = i+60;
                     tr.statement[i].state = 0
                 };
@@ -229,7 +229,7 @@ init
                     tr.statement[i] =
 			"INSERT INTO seat(flight, seat, state) " +
 			"VALUES (:flight, :seat, :state )";
-                    tr.statement[i].flight = "AB4556";
+                    tr.statement[i].flight = "AC4556";
                     tr.statement[i].seat = i+40;
                     tr.statement[i].state = 0
                 };
