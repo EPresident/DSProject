@@ -40,7 +40,7 @@ define abort
 {
 	// Variable transName must be defined
 
-	//esegui transazione di abort per tid sul db
+	// execute abort transaction in the DB
 	tr.statement[0] ="UPDATE seat SET state = (SELECT trans.oldstate FROM trans "+
 		" WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid), "+
 		" hash = (SELECT trans.newhash FROM trans  "+
@@ -57,13 +57,12 @@ define abort
 	
 	install 
 	(
-		IOException => println@Console( "Database non disponibile quindi non posso rimuovere e devo propagare l'eccezione al coordinatore in modo che mi ricontatti quando sarà possibile")(),
-		//throw(fault) al coordinatore
-		SQLException => println@Console( "Impossibile sql abort partec")()
+		IOException => println@Console(transName+"(recovery): FATAL ERROR - SQL Exception during abort ")(),
+		SQLException => println@Console(transName+"(recovery): FATAL ERROR - DB unreachable ")()
 	);
 	executeTransaction@Database( tr )( ret );
 	
-	println@Console("Abortita la transazione "+tid+"!")()
+	println@Console(transName+"(recovery): ABORTED successfully")()
 }
 
 define doCommit
@@ -87,17 +86,17 @@ define doCommit
 	install // scope main
 	(
 		IOException => 
-			println@Console( transName+": FATAL ERROR - DB unreachable")();
+			println@Console( transName+"(recovery): FATAL ERROR - DB unreachable")();
 			answer = false,
 		SQLException => 
-			println@Console( transName+": FATAL ERROR - SQL error in doCommit")();
+			println@Console( transName+"(recovery): FATAL ERROR - SQL error in doCommit")();
 			answer = false
 	);
 	executeTransaction@Database( tr )( ret );
 	
 	answer = true; //rimuovere RR
 	
-	println@Console(transName+": COMMIT!")()
+	println@Console(transName+"(recovery): COMMIT!")()
 }
 
 main{
@@ -239,15 +238,13 @@ main{
 			tid = cr_row.tid;
 			scope (cr_abortReq)
 			{
-				install(default => println@Console("Errore nel recovery, tengo la entry.")();
+				install(default => println@Console("WARNING - recovery error!")();
 					cr_deleteEntry = false);
 				tReq.tid = tid;
 				tReq.cid = cr_row.cid;
 				if (cr_row.state==2){
-                                        println@Console("Mando doCommit a "+OtherServer.location)();
 					doCommit@OtherServer(tReq)()
 				} else {
-                                        println@Console("Mando abort a "+OtherServer.location)();
 					abort@OtherServer(tReq)()
 				}
 			}

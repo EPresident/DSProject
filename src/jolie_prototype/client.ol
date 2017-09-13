@@ -9,7 +9,8 @@ include "math.iol"
 constants
 {
 	dbname = "dbClient",
-	myLocation = "socket://localhost:7999"
+	myLocation = "socket://localhost:7999",
+	reset = false
 }
 
 outputPort FlightBookingService 
@@ -25,9 +26,6 @@ inputPort ClientService
 	Interfaces: ClientInterface, InternalClientInterface
 }
 
-//devo conoscere tutte le compagnie e poter chiedere tutti i voli e i posti disponibili per ogni volo
-
-
 execution{concurrent}
 
 init
@@ -42,36 +40,39 @@ init
 	};
 	connect@Database( connectionInfo )( void );
 	
-	// DEBUG
-	scope ( reset ) 
+	if(reset)
 	{
-		install ( SQLException => println@Console("receipts gia vuota")() ); 
-			updateRequest ="DROP TABLE receipt";
+		// DEBUG
+		scope ( reset ) 
+		{
+			install ( SQLException => println@Console("receipt already empty")() ); 
+				updateRequest ="DROP TABLE receipt";
+				update@Database( updateRequest )( ret )
+		};   
+		
+		scope ( createReceipt ) 
+		{
+			install ( SQLException => println@Console("Receipt table already there")() );
+			updateRequest =
+				" CREATE TABLE receipt ( "+
+					" receipt	TEXT NOT NULL, "+
+					" PRIMARY KEY(receipt))";
 			update@Database( updateRequest )( ret )
-	};   
-	
-	scope ( createReceipt ) 
-	{
-		install ( SQLException => println@Console("Receipt table already there")() );
-		updateRequest =
-			" CREATE TABLE receipt ( "+
-				" receipt	TEXT NOT NULL, "+
-				" PRIMARY KEY(receipt))";
-		update@Database( updateRequest )( ret )
-	};
-	
-	scope ( test ) 
-	{
-		install ( SQLException => println@Console("errore inserimento")() );
-		updateRequest =
-			"INSERT INTO receipt(receipt) " +
-			"VALUES (:rc)";
-		updateRequest.rc = "AJEJEBRAZORF666";
-		update@Database( updateRequest )( ret )
+		};
+		
+		scope ( test ) 
+		{
+			install ( SQLException => println@Console("errore inserimento")() );
+			updateRequest =
+				"INSERT INTO receipt(receipt) " +
+				"VALUES (:rc)";
+			updateRequest.rc = "AJEJEBRAZORF666";
+			update@Database( updateRequest )( ret )
+		}
 	};
 	
 	println@Console("Client service ready.")();
-	showDB
+	//showDB
 }
 
 define showDB

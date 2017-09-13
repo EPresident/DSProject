@@ -10,14 +10,6 @@ constants
 	serviceLocation = "socket://localhost:7999"
 }
 
-/*outputPort ClientService
-{
-	Interfaces: InternalClientInterface
-}
-
-embedded {
-	Jolie: "client.ol" in ClientService
-}*/
 outputPort ClientService
 {
 	Location: serviceLocation
@@ -47,7 +39,7 @@ define showDB
 
 main 
 {
-	println@Console("Invio richiesta...")();
+	println@Console("Sending request(1)...")();
 	request.lserv[0].server="socket://localhost:8001";
 	request.lserv[0].seat[0].flightID="AZ0123";
 	request.lserv[0].seat[0].number=69;
@@ -59,9 +51,9 @@ main
 	request.clientLocation = ClientService.location;
 	
 	book@ClientService(request);
-	println@Console("Fatto1.")()
+	println@Console("Done(1).")()
 	|
-        println@Console("Invio richiesta...")();
+        println@Console("Sending request(2)...")();
 	request2.lserv[0].server="socket://localhost:8001";
 	request2.lserv[0].seat[0].flightID="AZ0123";
 	request2.lserv[0].seat[0].number=63;
@@ -73,5 +65,5 @@ main
 	request2.clientLocation = ClientService.location;
 	
 	book@ClientService(request2);
-	println@Console("Fatto2.")()
+	println@Console("Done(2).")()
 }
