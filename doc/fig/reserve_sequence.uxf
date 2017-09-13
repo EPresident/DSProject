@@ -110,14 +110,14 @@ layer=1</panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>459</x>
-      <y>99</y>
-      <w>153</w>
-      <h>72</h>
+      <x>468</x>
+      <y>45</y>
+      <w>135</w>
+      <h>126</h>
     </coordinates>
     <panel_attributes>lt=&lt;&lt;&lt;-
 m1=book(seat1, seat2)</panel_attributes>
-    <additional_attributes>20.0;60.0;80.0;30.0;10.0;10.0</additional_attributes>
+    <additional_attributes>10.0;120.0;130.0;10.0</additional_attributes>
   </element>
   <element>
     <id>UMLNote</id>
@@ -136,13 +136,13 @@ a new transactionID</panel_attributes>
   <element>
     <id>Relation</id>
     <coordinates>
-      <x>522</x>
+      <x>504</x>
       <y>117</y>
-      <w>108</w>
+      <w>126</w>
       <h>27</h>
     </coordinates>
     <panel_attributes>lt=.</panel_attributes>
-    <additional_attributes>100.0;10.0;10.0;10.0</additional_attributes>
+    <additional_attributes>120.0;10.0;10.0;10.0</additional_attributes>
   </element>
   <element>
     <id>Relation</id>
@@ -407,12 +407,12 @@ recovered from here.</panel_attributes>
     <coordinates>
       <x>468</x>
       <y>486</y>
-      <w>108</w>
-      <h>54</h>
+      <w>189</w>
+      <h>126</h>
     </coordinates>
     <panel_attributes>lt=&lt;&lt;&lt;-
-m1= finalize(TID)</panel_attributes>
-    <additional_attributes>10.0;40.0;50.0;20.0;10.0;10.0</additional_attributes>
+m1= return(Receipt)</panel_attributes>
+    <additional_attributes>110.0;120.0;10.0;10.0</additional_attributes>
   </element>
   <element>
     <id>UMLNote</id>

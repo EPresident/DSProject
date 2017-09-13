@@ -69,7 +69,7 @@ Naturalmente si vuole evitare che le richieste di prenotazione interferiscono tr
 
 L'architettura è di tipo \textit{client-server} a due \textit{tier}, con server \textit{peer} (dato che le risorse sono distribuite).
 
-I \textbf{server} delle compagnie aeree mantengono la lista di voli e di posti a sedere, tendendo conto se quest'ultimi sono occupati o meno (e da chi). Forniscono la lista dei posti su richiesta. Possono eliminare una prenotazione effettuata da un client (su sua richiesta e solo sulle risorse gestite dal server).
+I \textbf{server} delle compagnie aeree mantengono la lista di voli e di posti a sedere, tendendo conto qualora questi siano occupati o meno (e da chi). Forniscono la lista dei posti su richiesta. Possono eliminare una prenotazione effettuata da un client (su sua richiesta e solo sulle risorse gestite dal server).
 
 I \textbf{client} delle agenzie di viaggio interrogano i server (conosciuti a priori) per avere la lista dei posti, e richiedono la prenotazione di una lista di posti. I client sono operati dagli addetti delle agenzie di viaggi.
 
@@ -233,7 +233,7 @@ Quando un server viene avviato, vengono eseguite tre attività di recupero dai g
 
 \paragraph{Recupero da coordinatore} L'attività consiste nel cercare in \texttt{coordtrans} record di transazioni pronte a essere finalizzate, cioè quelle in cui tutti i partecipanti hanno risposto a \texttt{canCommit}. Se il risultato è positivo vengono inviati i \texttt{doCommit}, altrimenti vengono inviati degli \texttt{abort}.
 
-\paragraph{Recupero da partecipante} L'attività consiste nel cercare in \texttt{transreg} record di transazioni aperte. Per ognuna di esse, si leggono i relativi record in \texttt{trans} per verificare qualora ci fosse stato un impegno a eseguire il \textit{commit} o meno: in caso affermativo, vengono fatte delle interrogazioni \texttt{getDecision} al coordinatore (con \textit{backoff esponenziale}), con lo scopo di sapere se finalizzare la transazione o abortire; altrimenti questa viene abortita.
+\paragraph{Recupero da partecipante} L'attività consiste nel cercare in \texttt{transreg} record di transazioni aperte. Per ognuna di esse, si leggono i relativi record in \texttt{trans} per verificare qualora ci fosse stato un impegno a eseguire il \textit{commit} o meno: in caso affermativo, vengono fatte delle interrogazioni \texttt{getDecision} al coordinatore (con \textit{backoff esponenziale}), con lo scopo di sapere se finalizzare la transazione o abortire; se invece non sono state fatte promesse di \textit{commit}, la transazione viene abortita.
 
 \subsection{Client}
 % Client
