@@ -552,8 +552,8 @@ main
                                         tryGetDecision@LocalRecovery(tac)
 				} else
 				{
-					abort;
-					showDBS
+					abort
+					//showDBS
 				}
 			}
 			
@@ -659,8 +659,8 @@ main
 		}
 	}]
 	{	
-		undef(global.openTrans.(transName));
-		showDBS
+		undef(global.openTrans.(transName))
+		//showDBS
 	}
 	
 	
@@ -787,8 +787,8 @@ main
 			" WHERE trans.flight = seat.flight AND trans.seat = seat.seat AND trans.tid= :tid) ";
 			tr.statement[#lockRequest.seat+1].tid = transName;  
 
-			tr.statement[#lockRequest.seat+2] = "INSERT INTO transreg(tid, coord, cid) VALUES (:tid, :coord, :cid) "+
-                            " WHERE EXISTS (SELECT * FROM trans WHERE tid= :tid)";
+			tr.statement[#lockRequest.seat+2] = "INSERT INTO transreg(tid, coord, cid) VALUES (:tid, :coord, :cid) ";
+			//+ " WHERE EXISTS (SELECT * FROM trans WHERE tid= :tid)";
 			tr.statement[#lockRequest.seat+2].tid = lockRequest.transInfo.tid;
 			tr.statement[#lockRequest.seat+2].coord = lockRequest.transInfo.coordLocation;
 			tr.statement[#lockRequest.seat+2].cid = lockRequest.cid;
