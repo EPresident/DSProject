@@ -43,7 +43,7 @@ init
 	if(reset)
 	{
 		// DEBUG
-		scope ( reset ) 
+		scope ( resetDB ) 
 		{
 			install ( SQLException => println@Console("receipt already empty")() ); 
 				updateRequest ="DROP TABLE receipt";
@@ -71,7 +71,7 @@ init
 		}
 	};
 	
-	println@Console("Client service ready.")();
+	println@Console("Client service ready.")()
 	//showDB
 }
 
@@ -109,25 +109,13 @@ define tryBooking
 		// Take first server as coordinator...
 		FlightBookingService.location = seatRequest.lserv[0].server;
 		
-		getAvailableSeats@FlightBookingService()(seatList);
-		valueToPrettyString@StringUtils(seatList)(str);
-		println@Console("Il coordinatore ha i posti "+str)();
-		
 		seatRequest.clientLocation = myLocation;
 		book@FlightBookingService(seatRequest)(response);
 		
 		if(response.success)
 		{
-			println@Console("Successo! Ricevuta: "+response.receipt)();
-			sleep@Time(2000)();
-			
-			md5@MessageDigest(response.receipt)(hash);
-			getReservedSeats@FlightBookingService(hash)(seatList);
-			valueToPrettyString@StringUtils(seatList)(str);
-			println@Console("Ho riservato dal coordinatore i posti "+str)();
-			sleep@Time(1000)();
-			
-			println@Console("Annullo la transazione")();
+			println@Console("Success! Receipt: "+response.receipt)()
+			/*println@Console("Annullo la transazione")();
 			seatRequest.lserv[0].seat[0].receiptForUndo=response.receipt;
 			seatRequest.lserv[0].seat[1].receiptForUndo=response.receipt;
 			seatRequest.lserv[1].seat[0].receiptForUndo=response.receipt;
@@ -138,12 +126,49 @@ define tryBooking
 			}else
 			{
 				println@Console("Annullamento fallito!")()
-			}
+			}*/
 		} else
 		{
-			println@Console("Transazione fallita.")()
+			println@Console("Transaction failed.")()
 		}
 
+	}
+}
+
+define tryQuerying
+{
+	scope(try)
+	{
+		install (
+			IOException => 
+				println@Console( "Server unavailable; attempts left: "+(--attemptsLeft) )();
+				if (attemptsLeft>0)
+				{
+					powReq.exponent = maxAttempts-attemptsLeft;
+					powReq.base = 2;
+					pow@Math(powReq)(multiplier);	
+					println@Console("Waiting "+(1500*multiplier)+"ms")();
+					sleep@Time(1500*multiplier)();
+					tryQuerying
+				} else
+				{
+					println@Console( "Server "+server+" unavailable.")()
+				}
+		);
+			
+		FlightBookingService.location = server;
+		
+		if(is_defined(hash))
+		{
+			getReservedSeats@FlightBookingService(hash)(seatList);
+			valueToPrettyString@StringUtils(seatList)(str);
+			println@Console("Reserved from "+server+":"+str)()
+		} else
+		{
+			getAvailableSeats@FlightBookingService()(seatList);
+			valueToPrettyString@StringUtils(seatList)(str);
+			println@Console(server+" has seats :"+str)()
+		}
 	}
 }
 
@@ -153,8 +178,8 @@ main
 	{
 		maxAttempts = 4;
 		attemptsLeft = maxAttempts;
-		tryBooking;
-		showDB
+		tryBooking
+		//showDB
 	}
 	
 	[canCommit(receipt)(answer)
@@ -172,5 +197,15 @@ main
 		update@Database( updateRequest )( ret );
 		println@Console("Can commit.")();
 		answer = true
+	}]
+	
+	[query(queryRequest)(seatList)
+	{
+		server -> queryRequest.server;
+		hash -> queryRequest.hash;
+		maxAttempts = 4;
+		attemptsLeft = maxAttempts;
+		tryQuerying
+		//showDB
 	}]
 }

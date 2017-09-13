@@ -54,6 +54,11 @@ type bookResponse: void{
 	.receipt?: string
 }
 
+type queryRequest: void{
+	.server: string
+	.receiptHash?: string
+}
+
 interface ClientInterface{
 	RequestResponse: 
 		canCommit(string)(bool)
@@ -61,7 +66,9 @@ interface ClientInterface{
 
 interface InternalClientInterface{
 	OneWay:
-		book(seatRequest)
+		book(seatRequest),
+	RequestResponse:
+		query(queryRequest)(seatResp)
 }
 
 interface FlightBookingInterface{
