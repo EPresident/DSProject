@@ -216,6 +216,11 @@ main{
 	// Look for leftover transactions
 	// prefix cr_ is to avoid variable clashes with abort procedure
 	println@Console("\t\t---COORDINATOR RECOVERY---")();
+	
+	// Uncommitted changes will be aborted
+	cr_ur="UPDATE coordtrans SET state = 3 WHERE state = 0";
+	update@Database(cr_ur)(cr_resp);
+	
 	cr_qr = "SELECT tid, partec, cid, state FROM coordTrans ";
 	query@Database(cr_qr)(cr_qres);
 	
