@@ -127,7 +127,7 @@ I nodi logici corrispondono a quelli fisici:
 %Important choices about implementation should be described here; e.g.,
 %peculiar data structures.
 
-L'implementazione è stata realizzata con il linguaggio \textit{service-oriented} Jolie. Ciò ha portato a notevoli semplificazioni nell'invio di messaggi e della parallelizzazione: infatti il sistema prevede un gran numero di invii di messaggi e scritture su database. La scelta ha anche portato ad alcune complicazioni nell'implementazione delle routine di recovery, a causa del flusso di esecuzione dei programmi in Jolie.
+L'implementazione è stata realizzata con il linguaggio \textit{service-oriented} Jolie. Ciò ha portato a notevoli semplificazioni nell'invio di messaggi e della parallelizzazione: infatti il sistema prevede un gran numero di invii di messaggi e scritture su database. La scelta ha anche portato ad alcune complicazioni nell'implementazione delle routine di recovery, a causa del flusso di esecuzione dei programmi in Jolie. Inoltre, a quanto pare, non c'è modo di estrarre il mittente di un messaggio in Jolie: scambi di messagge \textit{one-way} sono possibili solo previo scambio degli indirizzi, il che porta a possibili falle di sicurezza. 
 
 I file \texttt{serverX.ol} implementano i vari server delle compagnie aeree, mentre il file \texttt{client.ol} implementa il servizio client di un'ipotetica agenzia di viaggi. Il file \texttt{clientStarter.ol} fa da veci ad un'ipotetica applicazione utente dell'agenzia, che dovrebbe far partire la prenotazione interfacciandosi col servizio client.
 
@@ -165,7 +165,7 @@ Sono previste due possibili interrogazioni ai server:
 
 %	Booking (coordinatore)
 \subsubsection{Prenotazione posti}
-L'operazione di prenotazione inizia con la richiesta da parte del client; essa deve contenere:
+\paragraph{Richiesta} L'operazione di prenotazione inizia con la richiesta da parte del client; essa deve contenere:
 \begin{itemize}
 	\item un array contenente
 	\begin{itemize}
@@ -175,8 +175,9 @@ L'operazione di prenotazione inizia con la richiesta da parte del client; essa d
 	\item l'indirizzo del client che effettua la richiesta, in modo da poter essere contattato dal coordinatore per escludere guasti durante l'operazione;
 	\item opzionalmente un valore in millisecondi per il tempo massimo consentito per l'operazione (timeout).
 \end{itemize}
+Si tenga presente che ogni server deve comparire una ed una sola volta nella richiesta; in altre parole, tutti i posti richiesti ad uno stesso server vanno aggregati assieme. Non viene effettuata nessuna validazione della richiesta in tal senso.
 
-Il server che riceve la richiesta diventa coordinatore della transazione, eseguendo le seguenti operazioni:
+\paragraph{Flusso di esecuzione}Il server che riceve la richiesta diventa coordinatore della transazione, eseguendo le seguenti operazioni:
 \begin{itemize}
 	\item genera un nome per la transazione (nome server+contatore transazioni), detto anche \texttt{tid};
 	\item fa partire un timer, al termine del quale la transazione viene abortita qualora i partecipanti non siano pronti al \textit{commit};
@@ -230,6 +231,8 @@ Qualora una richiesta di prenotazione posti contenga (come valore opzionale) una
 \subsubsection{Recupero dai guasti}
 
 Quando un server viene avviato, vengono eseguite tre attività di recupero dai guasti: quella da coordinatore, quella da partecipante e il recupero del contatore delle transazioni. Le attività di recupero sono implementate dal sotto-servizio \textit{embedded} \texttt{transrecovery.ol}.
+
+Si tenga presente che gli errori di comunicazione col database sono ritenuti \textit{catastrofici}.
 
 \paragraph{Recupero da coordinatore} L'attività consiste nel cercare in \texttt{coordtrans} record di transazioni pronte a essere finalizzate, cioè quelle in cui tutti i partecipanti hanno risposto a \texttt{canCommit}. Se il risultato è positivo vengono inviati i \texttt{doCommit}, altrimenti vengono inviati degli \texttt{abort}.
 
@@ -305,6 +308,15 @@ Si è cercato di mantenere i server il più monolitici possibile per non disperd
 
 \appendix
 % codice, istruzioni di installazione, ... 
+
+\section{Avvio dei test}
+
+Per eseguire un test, è necessario lanciare tutti i server eseguendo \texttt{jolie -C reset=true .\textbackslash serverX.ol} per ogni server (assumendo di essere nella stessa cartella dei sorgenti). Assegnare la costante \texttt{reset = true} permette la generazione dei database da usare per i test. Si tenga conto, però, che ciò causa anche la perdita delle modifiche causate da test precedenti. Sono stati preparati cinque server, come richiesto nei requisiti.
+
+Poi è necessario avviare il servizio del client, eseguendo anche stavolta  \texttt{jolie -C reset=true .\textbackslash client.ol}.
+Per avviare un'operazione di prenotazione o interrogazione è necessario mandare un messaggio al servizio client. Ciò può essere fatto tramite \texttt{clientStarter.ol} (prenotazione) o \texttt{clientStarter\_query.ol} (interrogazione). Le richieste sono \textit{hard-coded}, ma possono essere facilmente modificate a piacimento.
+
+\`E stato definito anche \texttt{clientStarter\_5.ol}, che esegue due prenotazioni su (rispettivamente) due e tre server tutti diversi.
 
 \end{document}
 
