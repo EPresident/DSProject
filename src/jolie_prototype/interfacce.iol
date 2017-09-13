@@ -76,8 +76,8 @@ interface FlightBookingInterface{
 		requestLockIn(lockRequest),
 	RequestResponse:
 		canCommit(transRequest)(bool),
-		doCommit(transRequest)(bool),
-		abort(transRequest)(void),
+		doCommit(transRequest)(bool) throws IOException,
+		abort(transRequest)(void) throws IOException,
 		getAvailableSeats(void)(seatResp),
 		getReservedSeats(string)(seatResp)
 }
